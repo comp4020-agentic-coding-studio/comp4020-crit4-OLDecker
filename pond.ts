@@ -5,7 +5,7 @@ import {
   type PadAudioChain,
 } from "./audio";
 import { clampDistance, cutoffForDistance, panForAngle } from "./scale";
-import { PAD_MODEL_URLS, WORLD_RADIUS, type PondScene } from "./scene";
+import { PAD_MODEL_SCALE, PAD_MODEL_URLS, WORLD_RADIUS, type PondScene } from "./scene";
 
 export interface Pad {
   distance: number; // normalized 0 (centre) .. 1 (edge)
@@ -20,7 +20,11 @@ export interface Pad {
 
 const ANGLE_STEP_RADIANS = Math.PI / 12; // 15 degrees
 const DISTANCE_STEP = 0.05;
-const REST_HEIGHT = 0.02; // small offset so pad models don't z-fight the water plane
+// Offset so pad models don't z-fight the water plane. Needs to scale with
+// PAD_MODEL_SCALE: at 0.02 (fine at scale 1) the scaled-up pad disc sat close
+// enough to y=0 that it z-fought the water plane and back-culled to a sliver,
+// leaving only the raised flower/stamen mesh visible as a red cross.
+const REST_HEIGHT = 0.15;
 const BOB_DURATION_SECONDS = 0.6;
 const BOB_PEAK_SCALE = 1.35;
 
@@ -51,6 +55,7 @@ export async function createPond(
       }
 
       const object3D = await pondScene.loadModel(modelUrl);
+      object3D.scale.setScalar(PAD_MODEL_SCALE);
       pondScene.scene.add(object3D);
 
       const pad: Pad = {
@@ -119,13 +124,13 @@ export function updateBobAnimation(pad: Pad, currentTime: number): void {
   if (pad.bobStartTime === null) return;
   const elapsed = currentTime - pad.bobStartTime;
   if (elapsed >= BOB_DURATION_SECONDS) {
-    pad.object3D.scale.setScalar(1);
+    pad.object3D.scale.setScalar(PAD_MODEL_SCALE);
     pad.bobStartTime = null;
     return;
   }
   const t = elapsed / BOB_DURATION_SECONDS;
   const bump = Math.sin(t * Math.PI); // 0 -> 1 -> 0
-  pad.object3D.scale.setScalar(1 + bump * (BOB_PEAK_SCALE - 1));
+  pad.object3D.scale.setScalar(PAD_MODEL_SCALE * (1 + bump * (BOB_PEAK_SCALE - 1)));
 }
 
 function attachPointerHandlers(pad: Pad, pondScene: PondScene): void {

@@ -5,6 +5,12 @@ import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 // (from pond.ts) becomes a radius in these units.
 export const WORLD_RADIUS = 4;
 
+// Kenney Nature Kit models are exported tiny (pad footprints are ~0.15-0.3
+// units) relative to WORLD_RADIUS — scale them up so they read as real
+// objects in the scene instead of specks.
+export const PAD_MODEL_SCALE = 4.5;
+const RIM_ROCK_SCALE = 2;
+
 // `new URL(..., import.meta.url)` (rather than a plain string path) is what
 // makes Vite's bundler notice these references, copy the files into dist/,
 // and rewrite the URL — a plain string in a data attribute or array literal
@@ -85,6 +91,18 @@ export async function createPondScene(container: HTMLElement): Promise<PondScene
     const cached = modelCache.get(url);
     if (cached) return cached.clone(true);
     const gltf = await gltfLoader.loadAsync(url);
+    // Some Nature Kit models have inconsistent face winding, which leaves
+    // most of the mesh back-face-culled (near-invisible) from this camera
+    // angle. Rendering both sides is cheap at this poly count and avoids
+    // depending on every asset's winding being correct.
+    gltf.scene.traverse((obj) => {
+      if (obj instanceof THREE.Mesh) {
+        const materials = Array.isArray(obj.material) ? obj.material : [obj.material];
+        for (const material of materials) {
+          material.side = THREE.DoubleSide;
+        }
+      }
+    });
     modelCache.set(url, gltf.scene);
     return gltf.scene.clone(true);
   }
@@ -94,6 +112,7 @@ export async function createPondScene(container: HTMLElement): Promise<PondScene
       const rock = await loadModel(rim.model);
       rock.position.set(rim.x, 0, rim.z);
       rock.rotation.y = rim.rotationY;
+      rock.scale.setScalar(RIM_ROCK_SCALE);
       scene.add(rock);
     }),
   );
