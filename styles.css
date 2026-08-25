@@ -4,6 +4,7 @@ body {
   font-family: system-ui, sans-serif;
   line-height: 1.6;
   color: #1a1a1a;
+  background: #1b2436;
 }
 
 main {
@@ -12,5 +13,105 @@ main {
 }
 
 a {
-  color: #0b5fff;
+  color: #ffb454;
+}
+
+h1 {
+  color: #f4e9d8;
+  font-weight: 600;
+}
+
+.pond {
+  position: relative;
+  width: min(90vw, 32rem);
+  aspect-ratio: 1 / 1;
+  margin: 2rem auto;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle at 50% 40%,
+    #3a5a6b 0%,
+    #24384a 55%,
+    #17232f 100%
+  );
+  box-shadow: 0 0 3rem rgb(255 180 84 / 15%) inset;
+  touch-action: none;
+}
+
+.ripple {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 4rem;
+  height: 4rem;
+  border-radius: 50%;
+  border: 2px solid rgb(255 200 120 / 60%);
+  transform: translate(-50%, -50%) scale(0);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.ripple-pulse {
+  animation: ripple-expand 1.6s ease-out;
+}
+
+@keyframes ripple-expand {
+  0% {
+    transform: translate(-50%, -50%) scale(0);
+    opacity: 0.9;
+  }
+
+  100% {
+    transform: translate(-50%, -50%) scale(9);
+    opacity: 0;
+  }
+}
+
+.lily-pad {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  width: 3rem;
+  height: 3rem;
+  border: none;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #6fae5c, #3f7a3a 75%);
+  box-shadow: 0 0.2rem 0.5rem rgb(0 0 0 / 30%);
+  font-size: 1.4rem;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: grab;
+  transition:
+    left 0.15s ease-out,
+    top 0.15s ease-out;
+}
+
+.lily-pad:active {
+  cursor: grabbing;
+}
+
+.lily-pad:focus-visible {
+  outline: 3px solid #ffb454;
+  outline-offset: 3px;
+}
+
+.lily-pad-active {
+  animation: lily-pad-bob 0.6s ease-out;
+}
+
+@keyframes lily-pad-bob {
+  0% {
+    scale: 1;
+    filter: brightness(1);
+  }
+
+  30% {
+    scale: 1.25;
+    filter: brightness(1.5);
+  }
+
+  100% {
+    scale: 1;
+    filter: brightness(1);
+  }
 }
