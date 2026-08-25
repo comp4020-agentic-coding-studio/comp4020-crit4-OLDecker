@@ -1,13 +1,15 @@
 import { getAudioContext, resumeAudio, triggerPadNote } from "./audio";
 import {
+  addPad,
   createPond,
+  removePad,
   syncPadScreenPosition,
   triggerBob,
   updateBobAnimation,
   type Pad,
 } from "./pond";
-import { createPondScene } from "./scene";
-import { delayFractionForDistance, frequencyForDistance } from "./scale";
+import { BUTTON_ZOOM_STEP, createPondScene } from "./scene";
+import { clampDistance, delayFractionForDistance, frequencyForDistance } from "./scale";
 import {
   createWindmill,
   getWindSpeedMultiplier,
@@ -20,11 +22,20 @@ const RIPPLE_LOOKAHEAD_SECONDS = 0.1;
 
 const pond = document.querySelector<HTMLElement>("#pond");
 const ripple = document.querySelector<HTMLElement>(".ripple");
+const zoomInButton = document.querySelector<HTMLButtonElement>("#zoom-in");
+const zoomOutButton = document.querySelector<HTMLButtonElement>("#zoom-out");
+const paletteButtons = document.querySelectorAll<HTMLButtonElement>(".palette-button");
 
 if (pond) {
   const ctx = getAudioContext();
   const pondScene = await createPondScene(pond);
-  const pads = await createPond(pond, ctx, pondScene);
+
+  let pads: Pad[] = [];
+  const handlePadRemoved = (pad: Pad): void => {
+    removePad(pad, pondScene);
+    pads = pads.filter((existing) => existing !== pad);
+  };
+  pads = await createPond(pond, ctx, pondScene, handlePadRemoved);
   const windmill = await createWindmill(pond, pondScene);
 
   let started = false;
@@ -44,6 +55,20 @@ if (pond) {
   pond.addEventListener("pointerdown", start);
   pond.addEventListener("keydown", start);
 
+  zoomInButton?.addEventListener("click", () => pondScene.zoomBy(-BUTTON_ZOOM_STEP));
+  zoomOutButton?.addEventListener("click", () => pondScene.zoomBy(BUTTON_ZOOM_STEP));
+
+  for (const button of paletteButtons) {
+    button.addEventListener("click", () => {
+      start();
+      const modelKey = button.dataset.model;
+      if (!modelKey) return;
+      void addPad(pond, ctx, pondScene, modelKey, handlePadRemoved).then((pad) => {
+        pads.push(pad);
+      });
+    });
+  }
+
   function triggerRipple(): void {
     if (!ripple) return;
     ripple.classList.remove("ripple-pulse");
@@ -60,12 +85,15 @@ if (pond) {
       triggerRipple();
       const interval = BASE_PULSE_INTERVAL_SECONDS / getWindSpeedMultiplier(windmill.distance);
       for (const pad of pads) {
+        // Clamp: mid-drag past the rim (removal gesture) a pad's raw distance
+        // can exceed 1, which would index off the end of the pentatonic scale.
+        const distance = clampDistance(pad.distance);
         const triggerTime =
-          nextPulseTime + delayFractionForDistance(pad.distance) * interval;
+          nextPulseTime + delayFractionForDistance(distance) * interval;
         triggerPadNote(
           ctx,
           pad.audioChain,
-          frequencyForDistance(pad.distance),
+          frequencyForDistance(distance),
           triggerTime,
         );
         pad.nextTriggerTime = triggerTime;
@@ -96,7 +124,7 @@ if (pond) {
 
   // Render at least one frame immediately so the scene and pad positions are
   // visible before the first user gesture starts the audio-driven tick loop.
-  for (const pad of pads as Pad[]) {
+  for (const pad of pads) {
     syncPadScreenPosition(pad, pondScene);
   }
   syncWindmillScreenPosition(windmill, pondScene);

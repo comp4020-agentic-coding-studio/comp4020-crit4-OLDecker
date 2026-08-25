@@ -1,12 +1,26 @@
-import { clampDistance } from "./scale";
+import { clampDistance, MIN_DISTANCE } from "./scale";
 import { WORLD_RADIUS, type PondScene } from "./scene";
 
 const ANGLE_STEP_RADIANS = Math.PI / 12; // 15 degrees
 const DISTANCE_STEP = 0.05;
 
+// Past this raw (unclamped) distance, a released allowOverflow drag counts
+// as "dragged off the pond" rather than "dragged near the rim".
+export const REMOVE_DISTANCE_THRESHOLD = 1.35;
+
 export interface PolarState {
   distance: number;
   angle: number;
+}
+
+export interface PolarPointerOptions {
+  // When set, distance is only floor-clamped during drag (still MIN_DISTANCE),
+  // not ceiling-clamped, so the element can visibly follow the pointer out
+  // past the rim. Used by pond.ts's removable pads, not the windmill.
+  allowOverflow?: boolean;
+  // Fires on pointerup when allowOverflow is set, reporting whether the last
+  // position was past REMOVE_DISTANCE_THRESHOLD.
+  onRelease?: (state: PolarState, wasOverflowing: boolean) => void;
 }
 
 // Shared drag/keyboard interaction for anything positioned in the pond's
@@ -20,7 +34,10 @@ export function attachPolarPointerHandlers(
   pondScene: PondScene,
   state: PolarState,
   onChange: () => void,
+  options: PolarPointerOptions = {},
 ): void {
+  let wasOverflowing = false;
+
   el.addEventListener("pointerdown", (event) => {
     el.setPointerCapture(event.pointerId);
   });
@@ -31,13 +48,27 @@ export function attachPolarPointerHandlers(
     const world = pondScene.screenToWorld(event.clientX, event.clientY);
     if (!world) return;
 
-    state.distance = clampDistance(Math.hypot(world.x, world.z) / WORLD_RADIUS);
+    const rawDistance = Math.hypot(world.x, world.z) / WORLD_RADIUS;
+    if (options.allowOverflow) {
+      state.distance = Math.max(rawDistance, MIN_DISTANCE);
+      wasOverflowing = rawDistance > REMOVE_DISTANCE_THRESHOLD;
+    } else {
+      state.distance = clampDistance(rawDistance);
+    }
     state.angle = Math.atan2(world.z, world.x);
     onChange();
   });
 
   el.addEventListener("pointerup", (event) => {
     el.releasePointerCapture(event.pointerId);
+    if (options.allowOverflow) {
+      options.onRelease?.(state, wasOverflowing);
+      if (!wasOverflowing) {
+        state.distance = clampDistance(state.distance);
+        onChange();
+      }
+      wasOverflowing = false;
+    }
   });
 }
 

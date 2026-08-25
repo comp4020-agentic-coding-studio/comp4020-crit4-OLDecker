@@ -93,24 +93,62 @@ export interface PondScene {
   resize(): void;
   worldToScreenPercent(worldX: number, worldY: number, worldZ: number): { xPercent: number; yPercent: number };
   screenToWorld(clientX: number, clientY: number): { x: number; z: number } | null;
+  zoomBy(deltaFactor: number): void;
 }
+
+// Fixed viewing direction (matches the no-clipping framing found earlier);
+// zoom moves the camera along this same ray instead of changing angle, so
+// zooming in/out never reintroduces the bottom-cutoff bug that direction was
+// tuned to avoid — it can only crop decorative periphery, which is expected.
+const CAMERA_DIRECTION = new THREE.Vector3(0, 7.5, 11).normalize();
+const DEFAULT_CAMERA_DISTANCE = 13.3; // current framing: nothing clips
+const MOBILE_CAMERA_DISTANCE = 10; // closer; keeps all draggable pads in frame
+const MOBILE_BREAKPOINT_PX = 640;
+const MIN_CAMERA_DISTANCE = 8.5;
+const MAX_CAMERA_DISTANCE = 17;
+const WHEEL_ZOOM_SENSITIVITY = 0.0015;
+export const BUTTON_ZOOM_STEP = 0.2;
 
 export async function createPondScene(container: HTMLElement): Promise<PondScene> {
   const scene = new THREE.Scene();
 
-  // Pulled back enough that the water disc's near edge and the windmill's
-  // full height both stay inside the frustum at the .pond container's
-  // aspect ratio — the tighter framing this replaced clipped the pond's
-  // bottom edge against the container's overflow:hidden boundary.
   const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 100);
-  camera.position.set(0, 7.5, 11);
-  camera.lookAt(0, 0, 0);
-  // lookAt only sets rotation; matrixWorld/matrixWorldInverse (what project()
-  // and the raycaster read) aren't recomputed until a render happens or this
-  // is called explicitly. Without it, any worldToScreenPercent/screenToWorld
-  // call made before the first render() uses a stale identity matrix and
-  // produces wildly wrong screen positions.
-  camera.updateMatrixWorld(true);
+
+  const startRect = container.getBoundingClientRect();
+  let cameraDistance =
+    startRect.width > 0 && startRect.width < MOBILE_BREAKPOINT_PX
+      ? MOBILE_CAMERA_DISTANCE
+      : DEFAULT_CAMERA_DISTANCE;
+
+  function applyCameraDistance(): void {
+    camera.position.copy(CAMERA_DIRECTION).multiplyScalar(cameraDistance);
+    camera.lookAt(0, 0, 0);
+    // lookAt only sets rotation; matrixWorld/matrixWorldInverse (what project()
+    // and the raycaster read) aren't recomputed until a render happens or this
+    // is called explicitly. Without it, any worldToScreenPercent/screenToWorld
+    // call made before the first render() uses a stale identity matrix and
+    // produces wildly wrong screen positions.
+    camera.updateMatrixWorld(true);
+  }
+  applyCameraDistance();
+
+  function zoomBy(deltaFactor: number): void {
+    cameraDistance = Math.min(
+      MAX_CAMERA_DISTANCE,
+      Math.max(MIN_CAMERA_DISTANCE, cameraDistance * (1 + deltaFactor)),
+    );
+    applyCameraDistance();
+    render();
+  }
+
+  container.addEventListener(
+    "wheel",
+    (event) => {
+      event.preventDefault();
+      zoomBy(event.deltaY * WHEEL_ZOOM_SENSITIVITY);
+    },
+    { passive: false },
+  );
 
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
   const canvas = renderer.domElement;
@@ -213,5 +251,5 @@ export async function createPondScene(container: HTMLElement): Promise<PondScene
   resize();
   window.addEventListener("resize", resize);
 
-  return { scene, loadModel, render, resize, worldToScreenPercent, screenToWorld };
+  return { scene, loadModel, render, resize, worldToScreenPercent, screenToWorld, zoomBy };
 }
