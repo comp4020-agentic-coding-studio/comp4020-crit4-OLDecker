@@ -32,3 +32,30 @@ A starting point, not a rulebook. As you learn what your prototype needs --- a
 convention the work has to hold to, a sensor that keeps catching you out, a fact
 about the stack that is easy to get wrong --- write it down here. Growing this
 file is the work.
+
+## Stack gotchas found so far
+
+- **Vite only rewrites asset paths in recognized HTML attributes** (`<img
+  src>`, `<link href>`, etc). A path used elsewhere — a custom `data-*`
+  attribute, a plain string in a `.ts` array/object — is invisible to Vite's
+  bundler and 404s in `dist/` even though it works in `pnpm dev`. Use
+  `new URL("./relative/path.ext", import.meta.url).href`; Vite's bundler
+  statically detects that pattern, copies the file into `dist/assets/`
+  (hashed), or inlines it as a `data:` URI if it's under the default 4KB
+  threshold. Confirm with `find dist -iname "*.<ext>"` after a build, not
+  just by trusting a green `pnpm build`.
+- **Three.js: `camera.lookAt()` does not update `camera.matrixWorld` /
+  `matrixWorldInverse`.** Those only refresh on the next `renderer.render()`
+  call (or an explicit `camera.updateMatrixWorld()`). Any `Vector3.project()`
+  or `Raycaster.setFromCamera()` call made *before* the first render uses a
+  stale identity matrix and silently produces wrong (but plausible-looking,
+  not NaN) coordinates. If a scene has an interactive layer synced to
+  world-space positions, call `camera.updateMatrixWorld(true)` right after
+  positioning the camera, not just after the first render.
+- **oxlint 1.75.0's `--ignore-path` breaks on a relative path** (e.g.
+  `.gitignore`), reporting "No files found to lint" — pass an absolute path
+  (`"$PWD/.gitignore"`) instead. Reproduces on a clean checkout; unrelated to
+  any change made here.
+- No headless-browser CLI (`chromium-cli`) is installed in this environment;
+  `/private/tmp/node_modules/playwright` has a cached Playwright install that
+  works as a fallback for live-verifying pages with a Node driver script.
