@@ -1,14 +1,5 @@
 # Process overview
 
-<!-- TEMPLATE: this file is a shape to fill in, not a form. Replace everything
-     in it with your own overview, and delete this comment — `pnpm
-     check:evidence` will remind you if it's still here. -->
-
-A reading-guide to how the work came together --- a map to your process, not an
-essay about it. Markers read this file and follow its citations; they don't
-trawl the repo for evidence you didn't point at, so if a moment mattered, cite
-it.
-
 This file is the shape; the course site's
 [assessment page](https://comp.anu.edu.au/courses/comp4020-agentic-coding-studio/topics/assessment/#what-you-submit)
 is the requirement, and its
@@ -17,60 +8,52 @@ cover every deliverable.
 
 ## What I built
 
-One paragraph: the thing, and the idea behind it.
+A pond you play like an instrument: a windmill sets the tempo, a ripple pulses
+outward on every beat, and each pad it crosses — lily pads, flowers,
+mushrooms, a rock, a stump — fires its own note and bobs, with distance from
+the centre mapping to pitch and a pentatonic scale so nothing you place can
+sound wrong. Pads can be dragged into position, dragged off the rim (or
+deleted with the keyboard) to remove them, and added back from a palette
+whose icons can be dropped directly onto the spot in the pond you want them.
 
 ## The moments that mattered
 
-Three or four for an assignment; fewer is fine for a weekly prototype. Keep the
-list short so each moment has room to do all four jobs:
+1. **The 2D pond didn't read as a real place.** A flat sprite-based layout
+   looked static and the pads' relative distance from the ripple's centre —
+   the whole mechanic — was hard to judge by eye. Instead of tweaking the 2D
+   art further, I rebuilt the scene in Three.js so the pond is an actual
+   disc in 3D space, and hit two non-obvious stack issues doing it (a Vite
+   asset-path bundling gotcha, and `camera.lookAt()` not updating the matrix
+   used by screen-to-world projection). Rather than just patching around
+   them, I wrote both into `CLAUDE.md` so they wouldn't cost a second debug
+   session, which is what told me the fix had actually generalised: the next
+   features built on that camera code without re-hitting either issue.
+   ([`f57d691`](https://github.com/comp4020-agentic-coding-studio/comp4020-crit4-OLDecker/commit/f57d691))
 
-1. **what happened** --- the problem, or the thing that went wrong
-2. **what you did instead of the obvious thing** --- the call you made, and why
-   it beat the obvious one
-3. **how you knew it was right** --- the check you ran, the viewport you looked
-   at, what you read before accepting the diff
-4. **the citation** --- a commit or commit range, a `CLAUDE.md` change, a check
-   that went from red to green, a prompt paired with the commit it produced
+2. **A visual bug that looked like the wrong cause.** Pads looked like they
+   went partly transparent right as they pulsed, which pointed straight at
+   the bob animation or the glTF materials. Instead of patching either, I
+   checked the material flags directly (both are opaque, non-transparent)
+   and caught the actual moment on a screenshot burst: a DOM ripple ring has
+   to paint above the WebGL canvas to be visible at all, and by design it
+   reaches each pad at almost the exact moment that pad triggers — so its
+   ordinary alpha blending read as the pad itself fading. `mix-blend-mode:
+   screen` fixed the read without touching that timing, and I wrote the
+   stacking interaction into `CLAUDE.md` since it's exactly the kind of bug
+   that gets mis-attributed to the wrong layer.
+   ([`19bc89a`](https://github.com/comp4020-agentic-coding-studio/comp4020-crit4-OLDecker/commit/19bc89a))
 
-Jobs 2 and 3 are the ones the repo can't tell a reader on its own, so they're
-where the marks are. The strongest moments are the ones where a correction
-landed in the **harness** --- the standards and checks your work has to satisfy
---- rather than in a retry: a rule added to `CLAUDE.md`, a check wired up, an
-attempt thrown away. Retrying until it passes is the routine case, and changing
-what the work runs against is the skilled one.
-
-Cite each moment as a link whose text is the commit hash or range and whose
-target is this repo's commit or compare URL, so a reader clicks straight to the
-evidence:
-
-- one commit: [`a1b2c3d`](https://github.com/YOUR-ORG/YOUR-REPO/commit/a1b2c3d)
-- a range:
-  [`a1b2c3d...e4f5a6b`](https://github.com/YOUR-ORG/YOUR-REPO/compare/a1b2c3d...e4f5a6b)
-
-To pair a prompt with the commit it produced, quote the prompt (curated, not a
-full transcript) next to the citation:
-
-> the prompt, verbatim
-
-Screenshots are welcome where one carries the verification better than a
-sentence does. Commit the file to this repo and link it with a **relative**
-path, which is what makes it render on GitHub: `![alt text](docs/before.png)`.
-Images don't count towards the word count and don't replace the citation.
-
-### A worked moment, for shape
-
-Delete this section along with the rest of the boilerplate --- it's here to show
-the four jobs in one paragraph, not to be imitated in content.
-
-> The date formatter kept coming back with `toLocaleDateString()` and no locale
-> argument, so the same build rendered differently on my machine and in CI. I'd
-> already re-prompted it twice, which fixed the line but not the habit, so the
-> third time I put the rule in `CLAUDE.md` instead
-> ([`3f9ac21`](https://github.com/YOUR-ORG/YOUR-REPO/commit/3f9ac21)) and added
-> a spec test that fails on a bare `toLocaleDateString`. That's what told me it
-> had actually taken: the test went red against the old code and green against
-> the new, and the next two features it wrote passed it without prompting
-> ([`3f9ac21...b7e0d14`](https://github.com/YOUR-ORG/YOUR-REPO/compare/3f9ac21...b7e0d14)).
+3. **A feature that passed its own test and still didn't work.** I'd
+   Playwright-verified a drop-off-the-pond "falls away" animation for the
+   palette drag feature before shipping it, then got told it wasn't visible
+   in real use. Rather than trust the same synthetic test again, I asked why
+   it could pass and still be broken: a real click-drag over the button's
+   emoji can arm the browser's own text-selection/drag gesture and swallow
+   the pointer events my code depends on, which Playwright's synthetic mouse
+   input doesn't reproduce. I re-verified with many small incremental
+   pointer moves instead of one jump — closer to a real gesture — and only
+   trusted the fix once that test showed the ghost actually falling.
+   ([`19bc89a`](https://github.com/comp4020-agentic-coding-studio/comp4020-crit4-OLDecker/commit/19bc89a))
 
 ## Before you ship
 
