@@ -27,14 +27,12 @@ h1 {
   aspect-ratio: 16 / 9;
   margin: 2rem auto;
   border-radius: 50%;
-  background:
-    url("./assets/water-tile.png") center 42% / 62% auto no-repeat,
-    radial-gradient(
-      ellipse at 50% 40%,
-      #3f6b52 0%,
-      #274a37 55%,
-      #17281d 100%
-    );
+  background: radial-gradient(
+    ellipse at 50% 40%,
+    #3f6b52 0%,
+    #274a37 55%,
+    #17281d 100%
+  );
   box-shadow: 0 0 3rem rgb(180 255 190 / 12%) inset;
   touch-action: none;
   overflow: hidden;
@@ -79,10 +77,15 @@ h1 {
 .lily-pad {
   position: absolute;
   transform: translate(-50%, -50%);
-  width: 3.4rem;
-  height: 3.4rem;
+  width: 3.6rem;
+  height: 3.6rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   border: none;
-  background: transparent;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #6fae5c, #3f7a3a 75%);
+  box-shadow: 0 0.2rem 0.5rem rgb(0 0 0 / 30%);
   padding: 0;
   cursor: grab;
   transition:
@@ -90,27 +93,24 @@ h1 {
     top 0.15s ease-out;
 }
 
-.lily-pad::before {
-  content: "";
-  position: absolute;
-  left: 50%;
-  bottom: 6%;
-  width: 68%;
-  height: 28%;
-  background: radial-gradient(ellipse, rgb(0 0 0 / 40%), transparent 70%);
-  transform: translateX(-50%);
-  z-index: -1;
-}
-
 .lily-pad img {
   display: block;
-  width: 100%;
-  height: 100%;
+  width: 76%;
+  height: 76%;
   object-fit: contain;
-  filter: drop-shadow(0 0.2rem 0.3rem rgb(0 0 0 / 35%));
+  filter: drop-shadow(0 0.15rem 0.2rem rgb(0 0 0 / 35%));
+}
+
+/* Lotus and mushroom sprites already depict ground/plant themselves, so they
+   sit directly on the water rather than on a separate pad disc. */
+.pixel-art {
+  background: transparent;
+  box-shadow: none;
 }
 
 .pixel-art img {
+  width: 100%;
+  height: 100%;
   image-rendering: pixelated;
 }
 
