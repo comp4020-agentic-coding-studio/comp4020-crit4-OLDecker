@@ -1,64 +1,88 @@
+import type { Object3D } from "three";
 import {
   createPadAudioChain,
   updatePadParams,
   type PadAudioChain,
 } from "./audio";
 import { clampDistance, cutoffForDistance, panForAngle } from "./scale";
+import { PAD_MODEL_URLS, WORLD_RADIUS, type PondScene } from "./scene";
 
 export interface Pad {
   distance: number; // normalized 0 (centre) .. 1 (edge)
   angle: number; // radians
   el: HTMLButtonElement;
+  object3D: Object3D;
   audioChain: PadAudioChain;
   nextTriggerTime: number | null;
   triggered: boolean;
+  bobStartTime: number | null;
 }
 
-const RADIUS_PERCENT = 42; // leaves margin so a pad never clips the pond's edge
 const ANGLE_STEP_RADIANS = Math.PI / 12; // 15 degrees
 const DISTANCE_STEP = 0.05;
-
-// Flattens the vertical axis only, so the pond reads as an isometric ground
-// plane. Distance/angle (and therefore all audio params) stay true polar
-// coordinates — this factor is applied purely to the on-screen `top`.
-const ISO_SQUASH = 0.55;
+const REST_HEIGHT = 0.02; // small offset so pad models don't z-fight the water plane
+const BOB_DURATION_SECONDS = 0.6;
+const BOB_PEAK_SCALE = 1.35;
 
 // The pond's lily pads are authored as real <button> elements in index.html
 // (not created here) so the spec's static structural check — a real,
 // keyboard/touch-operable control inside <main> — holds even before this
-// script runs. This function reads their starting position off data
-// attributes and wires up the interaction.
-export function createPond(pond: HTMLElement, ctx: AudioContext): Pad[] {
+// script runs. This function reads their starting position and 3D model off
+// data attributes and wires up the interaction. Each pad's visible presence
+// is its Three.js model; the button itself is an invisible hit target kept
+// in sync with that model's projected screen position every frame.
+export async function createPond(
+  pond: HTMLElement,
+  ctx: AudioContext,
+  pondScene: PondScene,
+): Promise<Pad[]> {
   const buttons = Array.from(
     pond.querySelectorAll<HTMLButtonElement>(".lily-pad"),
   );
 
-  return buttons.map((el) => {
-    const distance = clampDistance(Number(el.dataset.distance));
-    const angle = (Number(el.dataset.angle) * Math.PI) / 180;
+  return Promise.all(
+    buttons.map(async (el) => {
+      const distance = clampDistance(Number(el.dataset.distance));
+      const angle = (Number(el.dataset.angle) * Math.PI) / 180;
+      const modelKey = el.dataset.model;
+      const modelUrl = modelKey ? PAD_MODEL_URLS[modelKey] : undefined;
+      if (!modelUrl) {
+        throw new Error(`Lily pad button has an unknown data-model: ${el.outerHTML}`);
+      }
 
-    const pad: Pad = {
-      distance,
-      angle,
-      el,
-      audioChain: createPadAudioChain(ctx),
-      nextTriggerTime: null,
-      triggered: false,
-    };
+      const object3D = await pondScene.loadModel(modelUrl);
+      pondScene.scene.add(object3D);
 
-    attachPointerHandlers(pad, pond);
-    attachKeyboardHandlers(pad);
-    renderPad(pad);
-    return pad;
-  });
+      const pad: Pad = {
+        distance,
+        angle,
+        el,
+        object3D,
+        audioChain: createPadAudioChain(ctx),
+        nextTriggerTime: null,
+        triggered: false,
+        bobStartTime: null,
+      };
+
+      attachPointerHandlers(pad, pondScene);
+      attachKeyboardHandlers(pad);
+      applyPadState(pad);
+      syncPadScreenPosition(pad, pondScene);
+      return pad;
+    }),
+  );
 }
 
-export function renderPad(pad: Pad): void {
-  const offsetPercent = pad.distance * RADIUS_PERCENT;
-  const x = 50 + offsetPercent * Math.cos(pad.angle);
-  const y = 50 + offsetPercent * Math.sin(pad.angle) * ISO_SQUASH;
-  pad.el.style.left = `${x}%`;
-  pad.el.style.top = `${y}%`;
+// Updates everything derived from distance/angle: the 3D model's world
+// position, the audio params, and the ARIA value text. Screen position is
+// deliberately not touched here — see syncPadScreenPosition.
+export function applyPadState(pad: Pad): void {
+  const radius = pad.distance * WORLD_RADIUS;
+  pad.object3D.position.set(
+    radius * Math.cos(pad.angle),
+    REST_HEIGHT,
+    radius * Math.sin(pad.angle),
+  );
 
   const cutoff = cutoffForDistance(pad.distance);
   const pan = panForAngle(pad.angle);
@@ -74,7 +98,37 @@ export function renderPad(pad: Pad): void {
   );
 }
 
-function attachPointerHandlers(pad: Pad, pond: HTMLElement): void {
+// Projects the pad's current 3D world position through the camera to place
+// the invisible hit-target button. Called every animation frame (not just on
+// interaction) so it stays correct across window resizes and bob-animation
+// scale changes without needing its own change-tracking.
+export function syncPadScreenPosition(pad: Pad, pondScene: PondScene): void {
+  const { x, y, z } = pad.object3D.position;
+  const { xPercent, yPercent } = pondScene.worldToScreenPercent(x, y, z);
+  pad.el.style.left = `${xPercent}%`;
+  pad.el.style.top = `${yPercent}%`;
+}
+
+export function triggerBob(pad: Pad, currentTime: number): void {
+  pad.bobStartTime = currentTime;
+}
+
+// Eases the pad model's scale up and back down over BOB_DURATION_SECONDS.
+// Call every frame; it's a no-op once the animation has finished.
+export function updateBobAnimation(pad: Pad, currentTime: number): void {
+  if (pad.bobStartTime === null) return;
+  const elapsed = currentTime - pad.bobStartTime;
+  if (elapsed >= BOB_DURATION_SECONDS) {
+    pad.object3D.scale.setScalar(1);
+    pad.bobStartTime = null;
+    return;
+  }
+  const t = elapsed / BOB_DURATION_SECONDS;
+  const bump = Math.sin(t * Math.PI); // 0 -> 1 -> 0
+  pad.object3D.scale.setScalar(1 + bump * (BOB_PEAK_SCALE - 1));
+}
+
+function attachPointerHandlers(pad: Pad, pondScene: PondScene): void {
   pad.el.addEventListener("pointerdown", (event) => {
     pad.el.setPointerCapture(event.pointerId);
   });
@@ -82,20 +136,12 @@ function attachPointerHandlers(pad: Pad, pond: HTMLElement): void {
   pad.el.addEventListener("pointermove", (event) => {
     if (!pad.el.hasPointerCapture(event.pointerId)) return;
 
-    const rect = pond.getBoundingClientRect();
-    const dx = event.clientX - (rect.left + rect.width / 2);
-    const dy = event.clientY - (rect.top + rect.height / 2);
+    const world = pondScene.screenToWorld(event.clientX, event.clientY);
+    if (!world) return;
 
-    // The pond is an oval (width != height) and its vertical axis is further
-    // flattened by ISO_SQUASH in renderPad(). Undo both, independently per
-    // axis, before recovering polar coordinates — this is the exact inverse
-    // of renderPad()'s x/y formulas.
-    const u = (dx / rect.width) * 100;
-    const v = (dy / (rect.height * ISO_SQUASH)) * 100;
-
-    pad.distance = clampDistance(Math.hypot(u, v) / RADIUS_PERCENT);
-    pad.angle = Math.atan2(v, u);
-    renderPad(pad);
+    pad.distance = clampDistance(Math.hypot(world.x, world.z) / WORLD_RADIUS);
+    pad.angle = Math.atan2(world.z, world.x);
+    applyPadState(pad);
   });
 
   pad.el.addEventListener("pointerup", (event) => {
@@ -122,6 +168,6 @@ function attachKeyboardHandlers(pad: Pad): void {
         return;
     }
     event.preventDefault();
-    renderPad(pad);
+    applyPadState(pad);
   });
 }

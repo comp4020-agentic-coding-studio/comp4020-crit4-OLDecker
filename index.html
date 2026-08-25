@@ -20,122 +20,101 @@
         aria-label="A pond instrument. Drag a lily pad, or focus one and use the arrow keys, to change its pitch, timing and stereo position."
       >
         <div class="ripple" aria-hidden="true"></div>
-        <img
-          class="pond-decor"
-          src="./assets/rock.png"
-          alt=""
-          aria-hidden="true"
-          style="width: 2.6rem; top: 22%; left: 18%"
-        />
-        <img
-          class="pond-decor"
-          src="./assets/rock.png"
-          alt=""
-          aria-hidden="true"
-          style="width: 2rem; top: 76%; left: 80%"
-        />
         <button
           type="button"
           class="lily-pad"
           role="slider"
-          aria-label="Frog lily pad"
+          aria-label="Large lily pad"
           aria-valuemin="0"
           aria-valuemax="100"
           aria-valuenow="65"
           aria-valuetext="pitch 65 of 100, panned centre"
           data-distance="0.35"
           data-angle="0"
-        >
-          <img src="./assets/frog.png" alt="" aria-hidden="true" />
-        </button>
+          data-model="lily_large"
+        ></button>
         <button
           type="button"
           class="lily-pad"
           role="slider"
-          aria-label="Duck lily pad"
+          aria-label="Small lily pad"
           aria-valuemin="0"
           aria-valuemax="100"
           aria-valuenow="45"
           aria-valuetext="pitch 45 of 100, panned right"
           data-distance="0.55"
           data-angle="45"
-        >
-          <img src="./assets/duck.png" alt="" aria-hidden="true" />
-        </button>
+          data-model="lily_small"
+        ></button>
         <button
           type="button"
           class="lily-pad"
           role="slider"
-          aria-label="Fish lily pad"
+          aria-label="Red mushroom"
           aria-valuemin="0"
           aria-valuemax="100"
           aria-valuenow="25"
           aria-valuetext="pitch 25 of 100, panned right"
           data-distance="0.75"
           data-angle="90"
-        >
-          <img src="./assets/fish.png" alt="" aria-hidden="true" />
-        </button>
+          data-model="mushroom_red"
+        ></button>
         <button
           type="button"
-          class="lily-pad pixel-art"
+          class="lily-pad"
           role="slider"
-          aria-label="Lotus lily pad"
+          aria-label="Purple flower"
           aria-valuemin="0"
           aria-valuemax="100"
           aria-valuenow="60"
           aria-valuetext="pitch 60 of 100, panned right"
           data-distance="0.4"
           data-angle="135"
-        >
-          <img src="./assets/lotus.png" alt="" aria-hidden="true" />
-        </button>
+          data-model="flower_purpleA"
+        ></button>
         <button
           type="button"
           class="lily-pad"
           role="slider"
-          aria-label="Rabbit lily pad"
+          aria-label="Tree stump"
           aria-valuemin="0"
           aria-valuemax="100"
           aria-valuenow="40"
           aria-valuetext="pitch 40 of 100, panned centre"
           data-distance="0.6"
           data-angle="180"
-        >
-          <img src="./assets/rabbit.png" alt="" aria-hidden="true" />
-        </button>
+          data-model="stump_round"
+        ></button>
         <button
           type="button"
           class="lily-pad"
           role="slider"
-          aria-label="Owl lily pad"
+          aria-label="Flat rock"
           aria-valuemin="0"
           aria-valuemax="100"
           aria-valuenow="20"
           aria-valuetext="pitch 20 of 100, panned left"
           data-distance="0.8"
           data-angle="225"
-        >
-          <img src="./assets/owl.png" alt="" aria-hidden="true" />
-        </button>
+          data-model="rock_smallFlatA"
+        ></button>
         <button
           type="button"
-          class="lily-pad pixel-art"
+          class="lily-pad"
           role="slider"
-          aria-label="Mushroom lily pad"
+          aria-label="Tan mushroom"
           aria-valuemin="0"
           aria-valuemax="100"
           aria-valuenow="55"
           aria-valuetext="pitch 55 of 100, panned left"
           data-distance="0.45"
           data-angle="270"
-        >
-          <img src="./assets/mushroom.png" alt="" aria-hidden="true" />
-        </button>
+          data-model="mushroom_tan"
+        ></button>
       </div>
     </main>
     <footer>
-      <p><small>Art: Kenney.nl (CC0 1.0)</small></p>
+      <p><small>3D models &amp; art: Kenney.nl (CC0 1.0)</small></p>
     </footer>
     <script type="module" src="./main.ts"></script>
   </body>

@@ -1,0 +1,141 @@
+import * as THREE from "three";
+import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+
+// World-space units the pond's polar coordinates map onto. distance 0..1
+// (from pond.ts) becomes a radius in these units.
+export const WORLD_RADIUS = 4;
+
+// `new URL(..., import.meta.url)` (rather than a plain string path) is what
+// makes Vite's bundler notice these references, copy the files into dist/,
+// and rewrite the URL — a plain string in a data attribute or array literal
+// is invisible to that asset pipeline and would 404 once built.
+const RIM_ROCKS = [
+  new URL("./assets/models/rock_largeA.glb", import.meta.url).href,
+  new URL("./assets/models/rock_largeB.glb", import.meta.url).href,
+];
+
+export const PAD_MODEL_URLS: Record<string, string> = {
+  lily_large: new URL("./assets/models/lily_large.glb", import.meta.url).href,
+  lily_small: new URL("./assets/models/lily_small.glb", import.meta.url).href,
+  mushroom_red: new URL("./assets/models/mushroom_red.glb", import.meta.url).href,
+  mushroom_tan: new URL("./assets/models/mushroom_tan.glb", import.meta.url).href,
+  flower_purpleA: new URL("./assets/models/flower_purpleA.glb", import.meta.url).href,
+  rock_smallFlatA: new URL("./assets/models/rock_smallFlatA.glb", import.meta.url).href,
+  stump_round: new URL("./assets/models/stump_round.glb", import.meta.url).href,
+};
+
+// Fixed rim positions (world XZ), just outside WORLD_RADIUS, plus a rotation
+// per rock so a repeated model doesn't read as an obvious copy-paste.
+const RIM_PLACEMENTS: { x: number; z: number; rotationY: number; model: string }[] = [
+  { x: WORLD_RADIUS * 1.15, z: WORLD_RADIUS * 0.3, rotationY: 0.4, model: RIM_ROCKS[0] },
+  { x: -WORLD_RADIUS * 1.1, z: -WORLD_RADIUS * 0.5, rotationY: 2.1, model: RIM_ROCKS[1] },
+  { x: -WORLD_RADIUS * 0.4, z: WORLD_RADIUS * 1.2, rotationY: 3.6, model: RIM_ROCKS[0] },
+];
+
+export interface PondScene {
+  scene: THREE.Scene;
+  loadModel(url: string): Promise<THREE.Object3D>;
+  render(): void;
+  resize(): void;
+  worldToScreenPercent(worldX: number, worldY: number, worldZ: number): { xPercent: number; yPercent: number };
+  screenToWorld(clientX: number, clientY: number): { x: number; z: number } | null;
+}
+
+export async function createPondScene(container: HTMLElement): Promise<PondScene> {
+  const scene = new THREE.Scene();
+
+  const camera = new THREE.PerspectiveCamera(40, 1, 0.1, 100);
+  camera.position.set(0, 6, 9);
+  camera.lookAt(0, 0, 0);
+  // lookAt only sets rotation; matrixWorld/matrixWorldInverse (what project()
+  // and the raycaster read) aren't recomputed until a render happens or this
+  // is called explicitly. Without it, any worldToScreenPercent/screenToWorld
+  // call made before the first render() uses a stale identity matrix and
+  // produces wildly wrong screen positions.
+  camera.updateMatrixWorld(true);
+
+  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+  const canvas = renderer.domElement;
+  canvas.setAttribute("aria-hidden", "true");
+  canvas.style.position = "absolute";
+  canvas.style.inset = "0";
+  canvas.style.width = "100%";
+  canvas.style.height = "100%";
+  canvas.style.pointerEvents = "none";
+  container.prepend(canvas);
+
+  scene.add(new THREE.AmbientLight(0xffffff, 0.8));
+  const sun = new THREE.DirectionalLight(0xfff2d8, 1.1);
+  sun.position.set(4, 8, 5);
+  scene.add(sun);
+
+  const water = new THREE.Mesh(
+    new THREE.CircleGeometry(WORLD_RADIUS * 1.3, 48),
+    new THREE.MeshStandardMaterial({ color: 0x2c6b52, roughness: 0.35, metalness: 0.05 }),
+  );
+  water.rotation.x = -Math.PI / 2;
+  scene.add(water);
+
+  const groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+  const raycaster = new THREE.Raycaster();
+
+  const gltfLoader = new GLTFLoader();
+  const modelCache = new Map<string, THREE.Object3D>();
+  async function loadModel(url: string): Promise<THREE.Object3D> {
+    const cached = modelCache.get(url);
+    if (cached) return cached.clone(true);
+    const gltf = await gltfLoader.loadAsync(url);
+    modelCache.set(url, gltf.scene);
+    return gltf.scene.clone(true);
+  }
+
+  await Promise.all(
+    RIM_PLACEMENTS.map(async (rim) => {
+      const rock = await loadModel(rim.model);
+      rock.position.set(rim.x, 0, rim.z);
+      rock.rotation.y = rim.rotationY;
+      scene.add(rock);
+    }),
+  );
+
+  function resize(): void {
+    const rect = container.getBoundingClientRect();
+    renderer.setSize(rect.width, rect.height, false);
+    camera.aspect = rect.width / rect.height || 1;
+    camera.updateProjectionMatrix();
+  }
+
+  function render(): void {
+    renderer.render(scene, camera);
+  }
+
+  const projected = new THREE.Vector3();
+  function worldToScreenPercent(
+    worldX: number,
+    worldY: number,
+    worldZ: number,
+  ): { xPercent: number; yPercent: number } {
+    projected.set(worldX, worldY, worldZ).project(camera);
+    return {
+      xPercent: (projected.x * 0.5 + 0.5) * 100,
+      yPercent: (1 - (projected.y * 0.5 + 0.5)) * 100,
+    };
+  }
+
+  const ndc = new THREE.Vector2();
+  const worldHit = new THREE.Vector3();
+  function screenToWorld(clientX: number, clientY: number): { x: number; z: number } | null {
+    const rect = container.getBoundingClientRect();
+    ndc.x = ((clientX - rect.left) / rect.width) * 2 - 1;
+    ndc.y = -((clientY - rect.top) / rect.height) * 2 + 1;
+    raycaster.setFromCamera(ndc, camera);
+    const hit = raycaster.ray.intersectPlane(groundPlane, worldHit);
+    if (!hit) return null;
+    return { x: hit.x, z: hit.z };
+  }
+
+  resize();
+  window.addEventListener("resize", resize);
+
+  return { scene, loadModel, render, resize, worldToScreenPercent, screenToWorld };
+}

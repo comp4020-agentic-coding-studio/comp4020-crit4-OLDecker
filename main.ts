@@ -1,5 +1,12 @@
 import { getAudioContext, resumeAudio, triggerPadNote } from "./audio";
-import { createPond, type Pad } from "./pond";
+import {
+  createPond,
+  syncPadScreenPosition,
+  triggerBob,
+  updateBobAnimation,
+  type Pad,
+} from "./pond";
+import { createPondScene } from "./scene";
 import { delayForDistance, frequencyForDistance } from "./scale";
 
 const PULSE_INTERVAL_SECONDS = 3.2;
@@ -10,7 +17,8 @@ const ripple = document.querySelector<HTMLElement>(".ripple");
 
 if (pond) {
   const ctx = getAudioContext();
-  const pads = createPond(pond, ctx);
+  const pondScene = await createPondScene(pond);
+  const pads = await createPond(pond, ctx, pondScene);
 
   let started = false;
   let nextPulseTime = 0;
@@ -33,12 +41,6 @@ if (pond) {
     ripple.classList.remove("ripple-pulse");
     void ripple.offsetWidth; // force reflow so the animation restarts
     ripple.classList.add("ripple-pulse");
-  }
-
-  function bob(pad: Pad): void {
-    pad.el.classList.remove("lily-pad-active");
-    void pad.el.offsetWidth;
-    pad.el.classList.add("lily-pad-active");
   }
 
   function tick(): void {
@@ -67,10 +69,20 @@ if (pond) {
         now >= pad.nextTriggerTime
       ) {
         pad.triggered = true;
-        bob(pad);
+        triggerBob(pad, now);
       }
+      updateBobAnimation(pad, now);
+      syncPadScreenPosition(pad, pondScene);
     }
 
+    pondScene.render();
     requestAnimationFrame(tick);
   }
+
+  // Render at least one frame immediately so the scene and pad positions are
+  // visible before the first user gesture starts the audio-driven tick loop.
+  for (const pad of pads as Pad[]) {
+    syncPadScreenPosition(pad, pondScene);
+  }
+  pondScene.render();
 }
