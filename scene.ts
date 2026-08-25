@@ -70,14 +70,19 @@ export async function createPondScene(container: HTMLElement): Promise<PondScene
   canvas.style.pointerEvents = "none";
   container.prepend(canvas);
 
-  scene.add(new THREE.AmbientLight(0xffffff, 0.8));
-  const sun = new THREE.DirectionalLight(0xfff2d8, 1.1);
+  // Matches the page's --pond-bg so the canvas's alpha-cleared area blends
+  // seamlessly into the surrounding .pond container instead of showing a
+  // seam between two near-black tones.
+  scene.background = new THREE.Color(0x1b2436);
+
+  scene.add(new THREE.AmbientLight(0xffffff, 1.05));
+  const sun = new THREE.DirectionalLight(0xfff2d8, 1.35);
   sun.position.set(4, 8, 5);
   scene.add(sun);
 
   const water = new THREE.Mesh(
     new THREE.CircleGeometry(WORLD_RADIUS * 1.3, 48),
-    new THREE.MeshStandardMaterial({ color: 0x2c6b52, roughness: 0.35, metalness: 0.05 }),
+    new THREE.MeshStandardMaterial({ color: 0x2ea37d, roughness: 0.3, metalness: 0.08 }),
   );
   water.rotation.x = -Math.PI / 2;
   scene.add(water);

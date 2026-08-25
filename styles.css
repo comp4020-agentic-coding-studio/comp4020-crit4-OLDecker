@@ -3,7 +3,7 @@ body {
   padding: 2rem;
   font-family: system-ui, sans-serif;
   line-height: 1.6;
-  color: #1a1a1a;
+  color: #e8e2d4;
   background: #1b2436;
 }
 
@@ -27,8 +27,11 @@ h1 {
   aspect-ratio: 16 / 10;
   margin: 2rem auto;
   border-radius: 1rem;
-  background: #16241c;
-  box-shadow: 0 0 3rem rgb(180 255 190 / 12%) inset;
+  background: #1b2436;
+  border: 1px solid rgb(255 255 255 / 8%);
+  box-shadow:
+    0 1rem 2.5rem rgb(0 0 0 / 35%),
+    0 0 3rem rgb(120 230 190 / 18%) inset;
   touch-action: none;
   overflow: hidden;
 }
