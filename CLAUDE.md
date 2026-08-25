@@ -67,3 +67,27 @@ here and wire it into `check`. Growing this file is the work.
 - No headless-browser CLI (`chromium-cli`) is installed in this environment;
   `/private/tmp/node_modules/playwright` has a cached Playwright install that
   works as a fallback for live-verifying pages with a Node driver script.
+- **TypeScript's `if (x)` null-narrowing on an outer `const` does not survive
+  into a hoisted `function` declaration defined later in the same block** —
+  only into inline arrow-function closures. `tsc --noEmit` throws `TS18047`
+  only for the function-declaration case. Bind a separate non-null alias
+  (`const el = x;`) right after the narrowing `if` and use that alias inside
+  any function declarations.
+- **A DOM overlay and a WebGL `<canvas>` in the same container, both left at
+  default `z-index: auto`, stack by DOM order, not paint order you'd guess
+  from CSS alone.** If the overlay has to render on top (e.g. a ripple ring
+  that needs to be visible over the canvas), its normal alpha blending will
+  read as *the object beneath it fading/going transparent* at the moment they
+  cross — especially damning if that crossing is timed to coincide with an
+  animation on the object underneath, since the two get mistaken for one
+  bug. `mix-blend-mode: screen` (light-only compositing) fixes the visual
+  read without touching the underlying z-order or timing.
+- **A custom pointer-event drag (`pointerdown`/`pointermove`/`pointerup`) can
+  be silently hijacked by the browser's own native text-selection or
+  drag-and-drop gesture on a real click-drag over text/emoji content** —
+  swallowing the `pointermove` stream before the custom drag threshold ever
+  fires. Playwright's synthetic `page.mouse` input does not reliably
+  reproduce this, so an automated drag test can pass while the feature is
+  broken for a real user. Fix: `event.preventDefault()` in `pointerdown`,
+  plus `user-select: none` and `-webkit-user-drag: none` on the draggable
+  element and its content.
