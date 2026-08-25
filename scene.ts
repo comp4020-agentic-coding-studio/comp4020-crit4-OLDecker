@@ -98,8 +98,12 @@ export interface PondScene {
 export async function createPondScene(container: HTMLElement): Promise<PondScene> {
   const scene = new THREE.Scene();
 
-  const camera = new THREE.PerspectiveCamera(40, 1, 0.1, 100);
-  camera.position.set(0, 6, 9);
+  // Pulled back enough that the water disc's near edge and the windmill's
+  // full height both stay inside the frustum at the .pond container's
+  // aspect ratio — the tighter framing this replaced clipped the pond's
+  // bottom edge against the container's overflow:hidden boundary.
+  const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 100);
+  camera.position.set(0, 7.5, 11);
   camera.lookAt(0, 0, 0);
   // lookAt only sets rotation; matrixWorld/matrixWorldInverse (what project()
   // and the raycaster read) aren't recomputed until a render happens or this

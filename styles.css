@@ -31,12 +31,16 @@ h1 {
   overflow: hidden;
 }
 
+/* Oval, not circular, to match the pond's oblique 2.5D perspective — the
+   water surface itself is an ellipse from this camera angle, so a ripple
+   on it should read the same way. Scaling both axes uniformly (in
+   ripple-expand) keeps this aspect ratio as it grows. */
 .ripple {
   position: absolute;
   top: 50%;
   left: 50%;
   width: 4rem;
-  height: 4rem;
+  height: 2.3rem;
   border-radius: 50%;
   border: 2px solid rgb(255 200 120 / 60%);
   transform: translate(-50%, -50%) scale(0);
