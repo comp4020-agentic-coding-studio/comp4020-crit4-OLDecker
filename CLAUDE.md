@@ -91,3 +91,17 @@ here and wire it into `check`. Growing this file is the work.
   broken for a real user. Fix: `event.preventDefault()` in `pointerdown`,
   plus `user-select: none` and `-webkit-user-drag: none` on the draggable
   element and its content.
+- **Mobile Safari does not reliably treat a `pointerdown` listener as a "real"
+  user gesture for unlocking `AudioContext.resume()`**, even though it fires
+  normally and works for every other purpose (drag start, focus). A page that
+  only calls `ctx.resume()` from `pointerdown` can render and animate
+  correctly on a phone while staying permanently silent, with no error
+  thrown — `resume()` just never resolves to `"running"`. `click` is the one
+  event every browser (including old WebKit) honours for this, and a tap
+  synthesises one after `touchend`, so register `start()` on both
+  `pointerdown` (instant feedback on desktop) and `click` (the one mobile
+  actually accepts), and make the resume attempt idempotent so retrying it on
+  every gesture is cheap. Chromium's touch emulation (Playwright's
+  `page.touchscreen`) does not reproduce this gap — it accepts `pointerdown`
+  fine — so this class of bug is invisible to automated testing entirely and
+  has to be reasoned about from platform behaviour, not caught by a test.

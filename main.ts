@@ -47,16 +47,26 @@ if (pond) {
   let lastTickTime = ctx.currentTime;
 
   const start = (): void => {
+    // Retried on every gesture, not just the first: some mobile browsers
+    // reject resume() on a gesture type they don't treat as a "real"
+    // activation, so the first call can silently no-op. resumeAudio() itself
+    // is a no-op once the context is already running, so this stays cheap.
+    resumeAudio().catch(() => {});
     if (started) return;
     started = true;
-    void resumeAudio();
     nextPulseTime = ctx.currentTime + 0.2;
     requestAnimationFrame(tick);
   };
 
-  // Either a drag anywhere on the pond, or tabbing/arrow-keying into a pad,
-  // counts as the user gesture that's allowed to resume the audio context.
+  // pointerdown/keydown give instant feedback on desktop, but mobile Safari
+  // in particular does not reliably treat pointerdown as a "real" user
+  // gesture for unlocking AudioContext.resume() — click is the one event
+  // type every browser (including old WebKit) honours, and a tap on a touch
+  // device synthesises one after touchend. Registering both means desktop
+  // gets the instant pointerdown response while mobile still gets a gesture
+  // click will accept even if pointerdown's resume() silently no-ops.
   pond.addEventListener("pointerdown", start);
+  pond.addEventListener("click", start);
   pond.addEventListener("keydown", start);
 
   zoomInButton?.addEventListener("click", () => pondScene.zoomBy(-BUTTON_ZOOM_STEP));
