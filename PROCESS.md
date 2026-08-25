@@ -55,6 +55,17 @@ whose icons can be dropped directly onto the spot in the pond you want them.
    trusted the fix once that test showed the ghost actually falling.
    ([`19bc89a`](https://github.com/comp4020-agentic-coding-studio/comp4020-crit4-OLDecker/commit/19bc89a))
 
+4. **The same symptom, a different cause.** Lily pads flickered transparent
+   again — worse mid-pulse — which looked like the same DOM-blending bug as
+   above. It wasn't: raycasting into the live scene and dumping each mesh's
+   triangle count showed some glTF models shipped literal duplicate
+   triangles, and `DoubleSide` (needed elsewhere for genuinely broken
+   winding) made both copies render and z-fight, unstably, whenever the
+   pad's own transform changed frame to frame — which is exactly what a
+   pulse animation does every frame. Deduping each mesh's index at load time
+   fixed it without touching the material setting other models still need.
+   ([`16f8a0e`](https://github.com/comp4020-agentic-coding-studio/comp4020-crit4-OLDecker/commit/16f8a0e))
+
 ## Before you ship
 
 `pnpm check:evidence` verifies your citations resolve to real commits, that a
