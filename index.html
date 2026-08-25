@@ -20,6 +20,34 @@
         aria-label="A pond instrument. Drag a lily pad, or focus one and use the arrow keys, to change its pitch, timing and stereo position."
       >
         <div class="ripple" aria-hidden="true"></div>
+        <img
+          class="pond-decor"
+          src="./assets/rock.png"
+          alt=""
+          aria-hidden="true"
+          style="width: 3rem; top: 8%; left: 12%"
+        />
+        <img
+          class="pond-decor"
+          src="./assets/shore-tile.png"
+          alt=""
+          aria-hidden="true"
+          style="width: 5rem; top: 4%; left: 68%"
+        />
+        <img
+          class="pond-decor"
+          src="./assets/rock.png"
+          alt=""
+          aria-hidden="true"
+          style="width: 2.2rem; top: 82%; left: 85%"
+        />
+        <img
+          class="pond-decor"
+          src="./assets/shore-tile.png"
+          alt=""
+          aria-hidden="true"
+          style="width: 4.5rem; top: 86%; left: 20%"
+        />
         <button
           type="button"
           class="lily-pad"
@@ -32,13 +60,13 @@
           data-distance="0.35"
           data-angle="0"
         >
-          <span aria-hidden="true">🐸</span>
+          <img src="./assets/frog.png" alt="" aria-hidden="true" />
         </button>
         <button
           type="button"
           class="lily-pad"
           role="slider"
-          aria-label="Butterfly lily pad"
+          aria-label="Duck lily pad"
           aria-valuemin="0"
           aria-valuemax="100"
           aria-valuenow="45"
@@ -46,7 +74,7 @@
           data-distance="0.55"
           data-angle="45"
         >
-          <span aria-hidden="true">🦋</span>
+          <img src="./assets/duck.png" alt="" aria-hidden="true" />
         </button>
         <button
           type="button"
@@ -60,11 +88,11 @@
           data-distance="0.75"
           data-angle="90"
         >
-          <span aria-hidden="true">🐟</span>
+          <img src="./assets/fish.png" alt="" aria-hidden="true" />
         </button>
         <button
           type="button"
-          class="lily-pad"
+          class="lily-pad pixel-art"
           role="slider"
           aria-label="Lotus lily pad"
           aria-valuemin="0"
@@ -74,13 +102,13 @@
           data-distance="0.4"
           data-angle="135"
         >
-          <span aria-hidden="true">🪷</span>
+          <img src="./assets/lotus.png" alt="" aria-hidden="true" />
         </button>
         <button
           type="button"
           class="lily-pad"
           role="slider"
-          aria-label="Snail lily pad"
+          aria-label="Rabbit lily pad"
           aria-valuemin="0"
           aria-valuemax="100"
           aria-valuenow="40"
@@ -88,13 +116,13 @@
           data-distance="0.6"
           data-angle="180"
         >
-          <span aria-hidden="true">🐌</span>
+          <img src="./assets/rabbit.png" alt="" aria-hidden="true" />
         </button>
         <button
           type="button"
           class="lily-pad"
           role="slider"
-          aria-label="Cricket lily pad"
+          aria-label="Owl lily pad"
           aria-valuemin="0"
           aria-valuemax="100"
           aria-valuenow="20"
@@ -102,13 +130,13 @@
           data-distance="0.8"
           data-angle="225"
         >
-          <span aria-hidden="true">🦗</span>
+          <img src="./assets/owl.png" alt="" aria-hidden="true" />
         </button>
         <button
           type="button"
-          class="lily-pad"
+          class="lily-pad pixel-art"
           role="slider"
-          aria-label="Bee lily pad"
+          aria-label="Mushroom lily pad"
           aria-valuemin="0"
           aria-valuemax="100"
           aria-valuenow="55"
@@ -116,10 +144,13 @@
           data-distance="0.45"
           data-angle="270"
         >
-          <span aria-hidden="true">🐝</span>
+          <img src="./assets/mushroom.png" alt="" aria-hidden="true" />
         </button>
       </div>
     </main>
+    <footer>
+      <p><small>Art: Kenney.nl (CC0 1.0)</small></p>
+    </footer>
     <script type="module" src="./main.ts"></script>
   </body>
 </html>

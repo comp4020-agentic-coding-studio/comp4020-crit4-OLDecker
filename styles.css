@@ -23,18 +23,28 @@ h1 {
 
 .pond {
   position: relative;
-  width: min(90vw, 32rem);
-  aspect-ratio: 1 / 1;
+  width: min(94vw, 44rem);
+  aspect-ratio: 16 / 9;
   margin: 2rem auto;
   border-radius: 50%;
-  background: radial-gradient(
-    circle at 50% 40%,
-    #3a5a6b 0%,
-    #24384a 55%,
-    #17232f 100%
-  );
-  box-shadow: 0 0 3rem rgb(255 180 84 / 15%) inset;
+  background:
+    url("./assets/water-tile.png") center 42% / 62% auto no-repeat,
+    radial-gradient(
+      ellipse at 50% 40%,
+      #3f6b52 0%,
+      #274a37 55%,
+      #17281d 100%
+    );
+  box-shadow: 0 0 3rem rgb(180 255 190 / 12%) inset;
   touch-action: none;
+  overflow: hidden;
+}
+
+.pond-decor {
+  position: absolute;
+  pointer-events: none;
+  image-rendering: pixelated;
+  filter: drop-shadow(0 0.15rem 0.2rem rgb(0 0 0 / 35%));
 }
 
 .ripple {
@@ -69,21 +79,39 @@ h1 {
 .lily-pad {
   position: absolute;
   transform: translate(-50%, -50%);
-  width: 3rem;
-  height: 3rem;
+  width: 3.4rem;
+  height: 3.4rem;
   border: none;
-  border-radius: 50%;
-  background: radial-gradient(circle at 35% 30%, #6fae5c, #3f7a3a 75%);
-  box-shadow: 0 0.2rem 0.5rem rgb(0 0 0 / 30%);
-  font-size: 1.4rem;
-  line-height: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  background: transparent;
+  padding: 0;
   cursor: grab;
   transition:
     left 0.15s ease-out,
     top 0.15s ease-out;
+}
+
+.lily-pad::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: 6%;
+  width: 68%;
+  height: 28%;
+  background: radial-gradient(ellipse, rgb(0 0 0 / 40%), transparent 70%);
+  transform: translateX(-50%);
+  z-index: -1;
+}
+
+.lily-pad img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  filter: drop-shadow(0 0.2rem 0.3rem rgb(0 0 0 / 35%));
+}
+
+.pixel-art img {
+  image-rendering: pixelated;
 }
 
 .lily-pad:active {

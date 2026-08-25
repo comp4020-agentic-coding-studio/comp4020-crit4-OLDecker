@@ -18,6 +18,11 @@ const RADIUS_PERCENT = 42; // leaves margin so a pad never clips the pond's edge
 const ANGLE_STEP_RADIANS = Math.PI / 12; // 15 degrees
 const DISTANCE_STEP = 0.05;
 
+// Flattens the vertical axis only, so the pond reads as an isometric ground
+// plane. Distance/angle (and therefore all audio params) stay true polar
+// coordinates — this factor is applied purely to the on-screen `top`.
+const ISO_SQUASH = 0.55;
+
 // The pond's lily pads are authored as real <button> elements in index.html
 // (not created here) so the spec's static structural check — a real,
 // keyboard/touch-operable control inside <main> — holds even before this
@@ -51,7 +56,7 @@ export function createPond(pond: HTMLElement, ctx: AudioContext): Pad[] {
 export function renderPad(pad: Pad): void {
   const offsetPercent = pad.distance * RADIUS_PERCENT;
   const x = 50 + offsetPercent * Math.cos(pad.angle);
-  const y = 50 + offsetPercent * Math.sin(pad.angle);
+  const y = 50 + offsetPercent * Math.sin(pad.angle) * ISO_SQUASH;
   pad.el.style.left = `${x}%`;
   pad.el.style.top = `${y}%`;
 
@@ -80,10 +85,16 @@ function attachPointerHandlers(pad: Pad, pond: HTMLElement): void {
     const rect = pond.getBoundingClientRect();
     const dx = event.clientX - (rect.left + rect.width / 2);
     const dy = event.clientY - (rect.top + rect.height / 2);
-    const maxRadius = (Math.min(rect.width, rect.height) * RADIUS_PERCENT) / 100;
 
-    pad.distance = clampDistance(Math.hypot(dx, dy) / maxRadius);
-    pad.angle = Math.atan2(dy, dx);
+    // The pond is an oval (width != height) and its vertical axis is further
+    // flattened by ISO_SQUASH in renderPad(). Undo both, independently per
+    // axis, before recovering polar coordinates — this is the exact inverse
+    // of renderPad()'s x/y formulas.
+    const u = (dx / rect.width) * 100;
+    const v = (dy / (rect.height * ISO_SQUASH)) * 100;
+
+    pad.distance = clampDistance(Math.hypot(u, v) / RADIUS_PERCENT);
+    pad.angle = Math.atan2(v, u);
     renderPad(pad);
   });
 
