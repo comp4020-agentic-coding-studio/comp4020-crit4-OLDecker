@@ -11,6 +11,8 @@ export const WORLD_RADIUS = 4;
 export const PAD_MODEL_SCALE = 4.5;
 const RIM_ROCK_SCALE = 2;
 
+const WATER_COLOR = 0x2ea37d;
+
 // `new URL(..., import.meta.url)` (rather than a plain string path) is what
 // makes Vite's bundler notice these references, copy the files into dist/,
 // and rewrite the URL — a plain string in a data attribute or array literal
@@ -239,7 +241,12 @@ export async function createPondScene(container: HTMLElement): Promise<PondScene
     { passive: false },
   );
 
-  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+  // No `alpha` option here: scene.background below is set to a solid
+  // THREE.Color, and three.js always forces the clear alpha to 1 whenever
+  // scene.background is a Color (see WebGLBackground.js), so a renderer
+  // `alpha` option would be silently ignored anyway. The canvas is always
+  // opaque, matching the page's --pond-bg underneath it.
+  const renderer = new THREE.WebGLRenderer({ antialias: true });
   const canvas = renderer.domElement;
   canvas.setAttribute("aria-hidden", "true");
   canvas.style.position = "absolute";
@@ -249,9 +256,9 @@ export async function createPondScene(container: HTMLElement): Promise<PondScene
   canvas.style.pointerEvents = "none";
   container.prepend(canvas);
 
-  // Matches the page's --pond-bg so the canvas's alpha-cleared area blends
-  // seamlessly into the surrounding .pond container instead of showing a
-  // seam between two near-black tones.
+  // Matches the page's --pond-bg so the opaque canvas blends seamlessly
+  // into the surrounding .pond container instead of showing a seam between
+  // two near-black tones.
   scene.background = new THREE.Color(0x1b2436);
 
   scene.add(new THREE.AmbientLight(0xffffff, 1.05));
@@ -261,7 +268,7 @@ export async function createPondScene(container: HTMLElement): Promise<PondScene
 
   const water = new THREE.Mesh(
     new THREE.CircleGeometry(WORLD_RADIUS * 1.3, 48),
-    new THREE.MeshStandardMaterial({ color: 0x2ea37d, roughness: 0.3, metalness: 0.08 }),
+    new THREE.MeshStandardMaterial({ color: WATER_COLOR, roughness: 0.3, metalness: 0.08 }),
   );
   water.rotation.x = -Math.PI / 2;
   scene.add(water);
@@ -269,6 +276,41 @@ export async function createPondScene(container: HTMLElement): Promise<PondScene
 
   const groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
   const raycaster = new THREE.Raycaster();
+
+  // Some Nature Kit meshes (lily pads, the flower) contain literal duplicate
+  // triangles at the same 3D position with opposite winding — an export
+  // artifact, confirmed by dumping their geometry (lily meshes: ~30% of
+  // their triangles are exact duplicates; rock/mushroom/stump meshes: none).
+  // Combined with the DoubleSide override below (genuinely needed for other
+  // models' real inconsistent winding), both copies of each duplicate
+  // triangle render at once and GPU z-fighting between them resolves to
+  // near-black at some pixels — the "flickering transparent" holes reported
+  // in those models. Dropping the second copy of every duplicate before it
+  // reaches the GPU removes the z-fighting; meshes with no duplicates are
+  // untouched.
+  function dedupeTriangles(geometry: THREE.BufferGeometry): void {
+    const position = geometry.attributes.position;
+    const index = geometry.index;
+    const triCount = index ? index.count / 3 : position.count / 3;
+
+    function vertexKey(vertexIndex: number): string {
+      return `${position.getX(vertexIndex).toFixed(4)},${position.getY(vertexIndex).toFixed(4)},${position.getZ(vertexIndex).toFixed(4)}`;
+    }
+
+    const seen = new Set<string>();
+    const keptIndices: number[] = [];
+    for (let i = 0; i < triCount; i++) {
+      const a = index ? index.getX(i * 3) : i * 3;
+      const b = index ? index.getX(i * 3 + 1) : i * 3 + 1;
+      const c = index ? index.getX(i * 3 + 2) : i * 3 + 2;
+      const key = [vertexKey(a), vertexKey(b), vertexKey(c)].sort().join("|");
+      if (seen.has(key)) continue;
+      seen.add(key);
+      keptIndices.push(a, b, c);
+    }
+    if (keptIndices.length === triCount * 3) return;
+    geometry.setIndex(keptIndices);
+  }
 
   const gltfLoader = new GLTFLoader();
   const modelCache = new Map<string, THREE.Object3D>();
@@ -282,6 +324,7 @@ export async function createPondScene(container: HTMLElement): Promise<PondScene
     // depending on every asset's winding being correct.
     gltf.scene.traverse((obj) => {
       if (obj instanceof THREE.Mesh) {
+        dedupeTriangles(obj.geometry);
         const materials = Array.isArray(obj.material) ? obj.material : [obj.material];
         for (const material of materials) {
           material.side = THREE.DoubleSide;

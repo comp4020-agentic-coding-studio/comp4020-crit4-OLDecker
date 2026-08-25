@@ -135,3 +135,32 @@ here and wire it into `check`. Growing this file is the work.
   one side of a small object a dead zone, add new geometry on the
   camera-facing side of that object instead of trying to tune the placement
   behind it.
+- **A loaded GLTF mesh can contain literal duplicate triangles** — same three
+  vertex positions, opposite winding — as an export artifact, not anything
+  this project's code did. Combined with `material.side = THREE.DoubleSide`
+  (needed elsewhere for real inconsistent winding, see the `loadModel`
+  comment in `scene.ts`), both copies of a duplicate triangle render at once
+  and GPU z-fighting between them is frame-to-frame *unstable*, especially
+  once anything changes the mesh's transform every frame (this project's pad
+  bob/pulse scale animation) — read by a user as the model "sometimes" going
+  transparent/hollow, not a fixed visual bug, because the flicker is
+  literally non-deterministic. Confirmed via `Raycaster.intersectObjects`
+  returning two hits at the *same* 3D point with opposite face normals, then
+  a full geometry dump (per-mesh triangle count vs. exact-duplicate count)
+  showing ~30% of the affected meshes' triangles were duplicates while
+  unaffected meshes in the same scene had zero. Swapping `DoubleSide` for
+  `BackSide` does not fix this (tried; broke legitimately one-sided meshes
+  elsewhere and left the z-fighting site just as flickery) — the fix is
+  deduplicating the geometry's index at load time (drop the second copy of
+  any triangle whose 3 vertex positions, rounded and order-independently
+  sorted, already appeared), which is a no-op for meshes with no duplicates.
+- **Reading a WebGL canvas's actual output for verification must use
+  `page.screenshot()` (compositor output), not `ctx2d.drawImage(webglCanvas,
+  ...)` + `getImageData`.** With the default `preserveDrawingBuffer: false`,
+  the browser is free to clear/repurpose the WebGL drawing buffer as soon as
+  the frame is presented; a 2D-context readback performed on a later tick
+  (e.g. inside a separate `page.evaluate` call) can silently return stale or
+  blank `(0,0,0,0)` pixel data with no error, even though the page visibly
+  renders correctly. Cost real time here chasing a "transparent" bug that was
+  actually just a broken readback, before switching to inspecting real
+  `page.screenshot()` PNG bytes (e.g. via Pillow), which is reliable.
