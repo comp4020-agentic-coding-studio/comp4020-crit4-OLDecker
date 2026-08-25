@@ -46,6 +46,14 @@ h1 {
   transform: translate(-50%, -50%) scale(0);
   opacity: 0;
   pointer-events: none;
+
+  /* The ring has to render above the WebGL canvas to be visible at all (the
+     canvas paints an opaque background), and by design it visually reaches
+     each pad right as that pad triggers (see delayFractionForDistance in
+     scale.ts). Normal alpha blending there reads as the pad fading/going
+     transparent for a moment; "screen" only ever adds light, so the same
+     crossing instead reads as a glint passing over a solid object. */
+  mix-blend-mode: screen;
 }
 
 .ripple-pulse {
@@ -127,14 +135,21 @@ h1 {
 }
 
 .palette-button {
-  /* Draggable onto the pond (main.ts); without this, touch drags scroll the
-     page instead of moving the ghost. */
+  /* Draggable onto the pond (main.ts). touch-action stops touch drags from
+     scrolling the page instead of moving the ghost; user-select/user-drag
+     stop a real click-drag over the emoji/text from arming the browser's
+     own text-selection or native drag-and-drop, which would swallow the
+     pointer events main.ts's custom drag relies on. */
   touch-action: none;
+  user-select: none;
+  -webkit-user-drag: none;
 }
 
 .palette-icon {
   font-size: 1.1em;
   margin-right: 0.15rem;
+  user-select: none;
+  -webkit-user-drag: none;
 }
 
 .zoom-button:hover,

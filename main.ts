@@ -112,6 +112,11 @@ if (pond) {
 
     button.addEventListener("pointerdown", (event) => {
       if (event.button !== 0) return;
+      // Without this, a real click-drag over the button's emoji/text can
+      // arm the browser's own native text-selection/drag gesture, which
+      // then swallows the pointermove stream below before our own drag
+      // (and its ghost) ever gets a chance to start.
+      event.preventDefault();
       activeDrag = {
         pointerId: event.pointerId,
         modelKey: button.dataset.model ?? "",
