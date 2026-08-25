@@ -64,6 +64,33 @@ export function createWindmillModel(): THREE.Object3D {
   hub.position.y = 1.6;
   root.add(hub);
 
+  // Tower radius at y interpolates linearly from 0.32 (y=0) to 0.18 (y=1.6);
+  // 1.0 gives ~0.2325 — flush-mounting the window there needed that value,
+  // not a guess, or the pane would float off the tower's actual surface.
+  const windowPane = new THREE.Mesh(
+    new THREE.BoxGeometry(0.16, 0.2, 0.05),
+    new THREE.MeshStandardMaterial({ color: 0x3f5b73, roughness: 0.25, metalness: 0.2 }),
+  );
+  windowPane.position.set(0, 1.0, 0.2);
+  root.add(windowPane);
+  const windowFrame = new THREE.Mesh(
+    new THREE.BoxGeometry(0.2, 0.24, 0.02),
+    new THREE.MeshStandardMaterial({ color: 0xf4e9d8, roughness: 0.6 }),
+  );
+  windowFrame.position.set(0, 1.0, 0.18);
+  root.add(windowFrame);
+
+  // A door at the tower's base, flush-mounted the same way as the window
+  // (radius ~0.32 at y=0) — tried a roof cap behind the hub first, but at
+  // this camera angle it sat entirely in the hub sphere's shadow and never
+  // read as anything. Low on the tower's front face it can't be occluded.
+  const door = new THREE.Mesh(
+    new THREE.BoxGeometry(0.22, 0.4, 0.05),
+    new THREE.MeshStandardMaterial({ color: 0x5a3d28, roughness: 0.7 }),
+  );
+  door.position.set(0, 0.2, 0.34);
+  root.add(door);
+
   const rotor = new THREE.Group();
   rotor.position.y = 1.6;
   for (let i = 0; i < BLADE_COUNT; i++) {
@@ -84,6 +111,68 @@ export function createWindmillModel(): THREE.Object3D {
   root.userData.rotor = rotor;
 
   return root;
+}
+
+// A gently curved ribbon feeding through the pond and out past its left
+// edge (negative world x — the camera's right vector is +x, confirmed from
+// CAMERA_DIRECTION, so negative x is screen-left), built as a hand-rolled
+// triangle strip rather than a straight plane so it reads as a meandering
+// stream, not a ruler line laid across the water.
+const RIVER_PATH_POINTS = [
+  new THREE.Vector3(WORLD_RADIUS * 0.85, 0, WORLD_RADIUS * 0.55),
+  new THREE.Vector3(WORLD_RADIUS * 0.25, 0, WORLD_RADIUS * 0.1),
+  new THREE.Vector3(-WORLD_RADIUS * 0.35, 0, -WORLD_RADIUS * 0.1),
+  new THREE.Vector3(-WORLD_RADIUS * 1.6, 0, -WORLD_RADIUS * 0.3),
+];
+const RIVER_SEGMENTS = 48;
+const RIVER_HALF_WIDTH = 0.32;
+const RIVER_SURFACE_HEIGHT = 0.02; // above the water plane, below pad rest height
+
+function createRiverMesh(): THREE.Mesh {
+  const curve = new THREE.CatmullRomCurve3(RIVER_PATH_POINTS);
+  const points = curve.getSpacedPoints(RIVER_SEGMENTS);
+
+  const positions: number[] = [];
+  for (let i = 0; i < points.length; i++) {
+    const point = points[i];
+    const prev = points[Math.max(i - 1, 0)];
+    const next = points[Math.min(i + 1, points.length - 1)];
+    const tangent = new THREE.Vector3().subVectors(next, prev).normalize();
+    const normal = new THREE.Vector3(-tangent.z, 0, tangent.x);
+    const left = point.clone().addScaledVector(normal, RIVER_HALF_WIDTH);
+    const right = point.clone().addScaledVector(normal, -RIVER_HALF_WIDTH);
+    positions.push(left.x, left.y, left.z, right.x, right.y, right.z);
+  }
+
+  const indices: number[] = [];
+  for (let i = 0; i < points.length - 1; i++) {
+    const a = i * 2;
+    const b = i * 2 + 1;
+    const c = (i + 1) * 2;
+    const d = (i + 1) * 2 + 1;
+    indices.push(a, b, c, b, d, c);
+  }
+
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+  geometry.setIndex(indices);
+  geometry.computeVertexNormals();
+
+  const material = new THREE.MeshStandardMaterial({
+    color: 0x6fd3e8,
+    roughness: 0.25,
+    metalness: 0.1,
+    transparent: true,
+    opacity: 0.9,
+    // The triangle winding above isn't guaranteed to face the top-down
+    // camera (same back-face-culling pitfall as the loaded GLTF models,
+    // see loadModel's comment) — DoubleSide sidesteps needing to get it
+    // exactly right.
+    side: THREE.DoubleSide,
+  });
+  const mesh = new THREE.Mesh(geometry, material);
+  mesh.position.y = RIVER_SURFACE_HEIGHT;
+  return mesh;
 }
 
 export interface PondScene {
@@ -176,6 +265,7 @@ export async function createPondScene(container: HTMLElement): Promise<PondScene
   );
   water.rotation.x = -Math.PI / 2;
   scene.add(water);
+  scene.add(createRiverMesh());
 
   const groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
   const raycaster = new THREE.Raycaster();
