@@ -4,6 +4,7 @@ import {
   updatePadParams,
   type PadAudioChain,
 } from "./audio";
+import { attachPolarKeyboardHandlers, attachPolarPointerHandlers } from "./polarControl";
 import { clampDistance, cutoffForDistance, panForAngle } from "./scale";
 import { PAD_MODEL_SCALE, PAD_MODEL_URLS, WORLD_RADIUS, type PondScene } from "./scene";
 
@@ -18,8 +19,6 @@ export interface Pad {
   bobStartTime: number | null;
 }
 
-const ANGLE_STEP_RADIANS = Math.PI / 12; // 15 degrees
-const DISTANCE_STEP = 0.05;
 // Offset so pad models don't z-fight the water plane. Needs to scale with
 // PAD_MODEL_SCALE: at 0.02 (fine at scale 1) the scaled-up pad disc sat close
 // enough to y=0 that it z-fought the water plane and back-culled to a sliver,
@@ -69,8 +68,8 @@ export async function createPond(
         bobStartTime: null,
       };
 
-      attachPointerHandlers(pad, pondScene);
-      attachKeyboardHandlers(pad);
+      attachPolarPointerHandlers(el, pondScene, pad, () => applyPadState(pad));
+      attachPolarKeyboardHandlers(el, pad, () => applyPadState(pad));
       applyPadState(pad);
       syncPadScreenPosition(pad, pondScene);
       return pad;
@@ -131,48 +130,4 @@ export function updateBobAnimation(pad: Pad, currentTime: number): void {
   const t = elapsed / BOB_DURATION_SECONDS;
   const bump = Math.sin(t * Math.PI); // 0 -> 1 -> 0
   pad.object3D.scale.setScalar(PAD_MODEL_SCALE * (1 + bump * (BOB_PEAK_SCALE - 1)));
-}
-
-function attachPointerHandlers(pad: Pad, pondScene: PondScene): void {
-  pad.el.addEventListener("pointerdown", (event) => {
-    pad.el.setPointerCapture(event.pointerId);
-  });
-
-  pad.el.addEventListener("pointermove", (event) => {
-    if (!pad.el.hasPointerCapture(event.pointerId)) return;
-
-    const world = pondScene.screenToWorld(event.clientX, event.clientY);
-    if (!world) return;
-
-    pad.distance = clampDistance(Math.hypot(world.x, world.z) / WORLD_RADIUS);
-    pad.angle = Math.atan2(world.z, world.x);
-    applyPadState(pad);
-  });
-
-  pad.el.addEventListener("pointerup", (event) => {
-    pad.el.releasePointerCapture(event.pointerId);
-  });
-}
-
-function attachKeyboardHandlers(pad: Pad): void {
-  pad.el.addEventListener("keydown", (event) => {
-    switch (event.key) {
-      case "ArrowLeft":
-        pad.angle -= ANGLE_STEP_RADIANS;
-        break;
-      case "ArrowRight":
-        pad.angle += ANGLE_STEP_RADIANS;
-        break;
-      case "ArrowUp":
-        pad.distance = clampDistance(pad.distance - DISTANCE_STEP);
-        break;
-      case "ArrowDown":
-        pad.distance = clampDistance(pad.distance + DISTANCE_STEP);
-        break;
-      default:
-        return;
-    }
-    event.preventDefault();
-    applyPadState(pad);
-  });
 }

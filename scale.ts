@@ -12,7 +12,7 @@ export const SCALE_FREQUENCIES = PENTATONIC_SEMITONES.map(
 );
 
 export const MIN_DISTANCE = 0.12;
-const MAX_DELAY_SECONDS = 1.4;
+const MAX_DELAY_FRACTION = 0.45; // fraction of the current pulse interval
 const MIN_CUTOFF_HZ = 500;
 const MAX_CUTOFF_HZ = 5000;
 
@@ -27,8 +27,12 @@ export function frequencyForDistance(distance: number): number {
 }
 
 // The ripple takes longer to reach a pad that's farther from the centre.
-export function delayForDistance(distance: number): number {
-  return distance * MAX_DELAY_SECONDS;
+// Returned as a fraction of the current pulse interval (not absolute
+// seconds) so ripple timing scales automatically as wind speed changes the
+// tempo — an absolute delay could otherwise exceed a shortened interval and
+// pile notes onto the next pulse.
+export function delayFractionForDistance(distance: number): number {
+  return distance * MAX_DELAY_FRACTION;
 }
 
 // Closer pads ring brighter; farther pads sound warmer/more muffled.

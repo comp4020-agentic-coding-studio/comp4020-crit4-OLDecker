@@ -38,6 +38,54 @@ const RIM_PLACEMENTS: { x: number; z: number; rotationY: number; model: string }
   { x: -WORLD_RADIUS * 0.4, z: WORLD_RADIUS * 1.2, rotationY: 3.6, model: RIM_ROCKS[0] },
 ];
 
+const BLADE_COUNT = 4;
+const BLADE_LENGTH = 1.1;
+const BLADE_COLORS = [0xffb454, 0xf4e9d8];
+
+// Built from primitives rather than loaded like the other pond models: the
+// user chose procedural generation for this one (no CC0 windmill exists in
+// the Kenney pack already used elsewhere, and this avoids a new
+// third-party-asset trust step). The rotor is exposed via userData so the
+// caller can spin it independently of the tower each frame.
+export function createWindmillModel(): THREE.Object3D {
+  const root = new THREE.Group();
+
+  const tower = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.18, 0.32, 1.6, 10),
+    new THREE.MeshStandardMaterial({ color: 0xcaa872, roughness: 0.8 }),
+  );
+  tower.position.y = 0.8;
+  root.add(tower);
+
+  const hub = new THREE.Mesh(
+    new THREE.SphereGeometry(0.16, 12, 12),
+    new THREE.MeshStandardMaterial({ color: 0xf4e9d8, roughness: 0.5 }),
+  );
+  hub.position.y = 1.6;
+  root.add(hub);
+
+  const rotor = new THREE.Group();
+  rotor.position.y = 1.6;
+  for (let i = 0; i < BLADE_COUNT; i++) {
+    const blade = new THREE.Mesh(
+      new THREE.BoxGeometry(0.14, BLADE_LENGTH, 0.03),
+      new THREE.MeshStandardMaterial({
+        color: BLADE_COLORS[i % BLADE_COLORS.length],
+        roughness: 0.6,
+      }),
+    );
+    blade.position.y = BLADE_LENGTH / 2;
+    const pivot = new THREE.Group();
+    pivot.rotation.z = (i * Math.PI * 2) / BLADE_COUNT;
+    pivot.add(blade);
+    rotor.add(pivot);
+  }
+  root.add(rotor);
+  root.userData.rotor = rotor;
+
+  return root;
+}
+
 export interface PondScene {
   scene: THREE.Scene;
   loadModel(url: string): Promise<THREE.Object3D>;

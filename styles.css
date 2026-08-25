@@ -64,7 +64,8 @@ h1 {
    to track the model's projected screen coordinates. This button is the
    real, invisible, keyboard/touch-operable hit target sitting above the
    WebGL canvas. */
-.lily-pad {
+.lily-pad,
+.wind-control {
   position: absolute;
   transform: translate(-50%, -50%);
   width: 3.6rem;
@@ -77,11 +78,13 @@ h1 {
   z-index: 1;
 }
 
-.lily-pad:active {
+.lily-pad:active,
+.wind-control:active {
   cursor: grabbing;
 }
 
-.lily-pad:focus-visible {
+.lily-pad:focus-visible,
+.wind-control:focus-visible {
   outline: 3px solid #ffb454;
   outline-offset: 3px;
   background: rgb(255 180 84 / 15%);
