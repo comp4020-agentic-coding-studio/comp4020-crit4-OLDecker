@@ -105,3 +105,33 @@ here and wire it into `check`. Growing this file is the work.
   `page.touchscreen`) does not reproduce this gap — it accepts `pointerdown`
   fine — so this class of bug is invisible to automated testing entirely and
   has to be reasoned about from platform behaviour, not caught by a test.
+- **Two independent freely-draggable circular hit-targets at the same
+  `z-index` will silently steal each other's clicks once one is dragged on
+  top of the other** — whichever happens to paint last in DOM order wins
+  `elementFromPoint`, and there's no error, just a dead spot. Caught this
+  after `pnpm check` was fully green: an automated drag-then-click regression
+  script (dragging the windmill onto a pad, then clicking the pad) silently
+  failed because the click landed on the windmill instead. A screenshot alone
+  wouldn't have shown it either — both hit-targets are invisible, only the 3D
+  models are drawn. Fix was giving the two element classes distinct
+  `z-index` values so the more important one (here, the pads — the actual
+  instrument) always wins regardless of drag order or DOM insertion order.
+  Worth a real interaction test (drag A onto B, then try to click B), not
+  just a visual screenshot, whenever a page has more than one draggable
+  overlay sharing the same space.
+- **Custom hand-rolled `BufferGeometry` triangle strips (e.g. a ribbon built
+  from manually-pushed positions/indices) are not guaranteed to wind toward
+  the camera** — the same back-face-culling pitfall as loaded GLTF models
+  with inconsistent winding (see the `loadModel` gotcha in `scene.ts`), just
+  self-inflicted instead of inherited from an asset. Getting the winding
+  exactly right requires reasoning about cross products per segment against
+  the actual camera direction; `side: THREE.DoubleSide` on the material
+  sidesteps that entirely and costs nothing for a thin ribbon.
+- **An object placed "behind" a small occluding shape (e.g. a sphere hub) is
+  not made more visible by moving it further behind** — from a fixed,
+  steeply-angled-downward camera, more negative offset just moves it deeper
+  into the same shadow. Confirmed by two failed placements at increasing
+  offsets, both invisible in a close-up screenshot. If a camera angle makes
+  one side of a small object a dead zone, add new geometry on the
+  camera-facing side of that object instead of trying to tune the placement
+  behind it.
