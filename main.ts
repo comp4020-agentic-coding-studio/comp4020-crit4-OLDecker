@@ -2,15 +2,18 @@ import { getAudioContext, resumeAudio, triggerPadNote } from "./audio";
 import {
   addPad,
   applyPadState,
+  beginPadFall,
   createPond,
   removePad,
+  sizeMultiplierFor,
   syncPadScreenPosition,
   triggerBob,
   updateBobAnimation,
+  updateFallAnimation,
   type Pad,
 } from "./pond";
 import { BUTTON_ZOOM_STEP, createPondScene, WORLD_RADIUS } from "./scene";
-import { clampDistance, delayFractionForDistance, frequencyForDistance } from "./scale";
+import { clampDistance, delayFractionForDistance, frequencyForAngle } from "./scale";
 import {
   createWindmill,
   getWindSpeedMultiplier,
@@ -18,7 +21,11 @@ import {
   updateWindmillSpin,
 } from "./windmill";
 
-const BASE_PULSE_INTERVAL_SECONDS = 3.2;
+// At the windmill's default position (multiplier ~1.4) this lands just
+// under a beat per second; at full wind (multiplier 2.2) pulses come
+// roughly every 0.8s, fast enough to read as an ongoing rhythm rather than
+// a sequence of isolated pings.
+const BASE_PULSE_INTERVAL_SECONDS = 1.8;
 const RIPPLE_LOOKAHEAD_SECONDS = 0.1;
 
 const pond = document.querySelector<HTMLElement>("#pond");
@@ -35,12 +42,21 @@ if (pond) {
   const pondScene = await createPondScene(pond);
 
   let pads: Pad[] = [];
+  // The pad stays in the `pads` array, mid-fall, until tick()'s animation
+  // loop reports it finished — only then is it actually torn down and
+  // filtered out, so the ragdoll tumble has time to play out.
   const handlePadRemoved = (pad: Pad): void => {
-    removePad(pad, pondScene);
-    pads = pads.filter((existing) => existing !== pad);
+    beginPadFall(pad, ctx.currentTime);
   };
   pads = await createPond(pond, ctx, pondScene, handlePadRemoved);
-  const windmill = await createWindmill(pond, pondScene);
+
+  let paused = false;
+  const pondStatus = document.querySelector<HTMLElement>("#pond-status");
+  const windmill = await createWindmill(pond, pondScene, () => {
+    paused = !paused;
+    windmill.el.classList.toggle("wind-control-paused", paused);
+    if (pondStatus) pondStatus.textContent = paused ? "Melody paused." : "Melody resumed.";
+  });
 
   let started = false;
   let nextPulseTime = 0;
@@ -68,6 +84,24 @@ if (pond) {
   pond.addEventListener("pointerdown", start);
   pond.addEventListener("click", start);
   pond.addEventListener("keydown", start);
+
+  // iOS Safari drops the AudioContext into its own non-standard "interrupted"
+  // state when the tab is backgrounded or the browser is closed and reopened
+  // (see resumeAudio's comment) — ctx.currentTime freezes, which stalls the
+  // whole tick loop, not just sound. visibilitychange (unlike the tap-to-start
+  // gesture handlers above) isn't a user gesture, but iOS accepts resume()
+  // here anyway once a context has already been running before. Resetting
+  // lastTickTime/nextPulseTime avoids a single huge dt/overdue-pulse spike
+  // from however long the tab was hidden.
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState !== "visible" || !started) return;
+    resumeAudio()
+      .then(() => {
+        lastTickTime = ctx.currentTime;
+        nextPulseTime = ctx.currentTime + 0.2;
+      })
+      .catch(() => {});
+  });
 
   zoomInButton?.addEventListener("click", () => pondScene.zoomBy(-BUTTON_ZOOM_STEP));
   zoomOutButton?.addEventListener("click", () => pondScene.zoomBy(BUTTON_ZOOM_STEP));
@@ -220,10 +254,11 @@ if (pond) {
     const dt = now - lastTickTime;
     lastTickTime = now;
 
-    if (now >= nextPulseTime - RIPPLE_LOOKAHEAD_SECONDS) {
+    if (!paused && now >= nextPulseTime - RIPPLE_LOOKAHEAD_SECONDS) {
       triggerRipple();
       const interval = BASE_PULSE_INTERVAL_SECONDS / getWindSpeedMultiplier(windmill.distance);
       for (const pad of pads) {
+        if (pad.fallStartTime !== null) continue; // falling pads don't schedule notes
         // Clamp: mid-drag past the rim (removal gesture) a pad's raw distance
         // can exceed 1, which would index off the end of the pentatonic scale.
         const distance = clampDistance(pad.distance);
@@ -232,8 +267,9 @@ if (pond) {
         triggerPadNote(
           ctx,
           pad.audioChain,
-          frequencyForDistance(distance),
+          frequencyForAngle(pad.angle),
           triggerTime,
+          sizeMultiplierFor(pad),
         );
         pad.nextTriggerTime = triggerTime;
         pad.triggered = false;
@@ -241,7 +277,14 @@ if (pond) {
       nextPulseTime += interval;
     }
 
+    // Collected rather than filtered in place: mutating `pads` mid-loop would
+    // skip/duplicate iteration.
+    const finishedFalling: Pad[] = [];
     for (const pad of pads) {
+      if (pad.fallStartTime !== null) {
+        if (updateFallAnimation(pad, now)) finishedFalling.push(pad);
+        continue;
+      }
       if (
         pad.nextTriggerTime !== null &&
         !pad.triggered &&
@@ -253,8 +296,12 @@ if (pond) {
       updateBobAnimation(pad, now);
       syncPadScreenPosition(pad, pondScene);
     }
+    if (finishedFalling.length > 0) {
+      for (const pad of finishedFalling) removePad(pad, pondScene);
+      pads = pads.filter((pad) => !finishedFalling.includes(pad));
+    }
 
-    updateWindmillSpin(windmill, dt);
+    if (!paused) updateWindmillSpin(windmill, dt);
     syncWindmillScreenPosition(windmill, pondScene);
 
     pondScene.render();

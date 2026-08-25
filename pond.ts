@@ -10,7 +10,7 @@ import {
   attachPolarPointerHandlers,
   REMOVE_DISTANCE_THRESHOLD,
 } from "./polarControl";
-import { clampDistance, cutoffForDistance, panForAngle } from "./scale";
+import { clampDistance, cutoffForDistance, normalizedAngle, panForAngle } from "./scale";
 import { PAD_MODEL_SCALE, PAD_MODEL_URLS, WORLD_RADIUS, type PondScene } from "./scene";
 
 export interface Pad {
@@ -22,6 +22,10 @@ export interface Pad {
   nextTriggerTime: number | null;
   triggered: boolean;
   bobStartTime: number | null;
+  fallStartTime: number | null;
+  fallOrigin: { x: number; z: number };
+  fallSpin: { x: number; z: number };
+  sizeLevel: number; // index into SIZE_MULTIPLIERS; click a pad to cycle it
 }
 
 // Offset so pad models don't z-fight the water plane. Needs to scale with
@@ -31,6 +35,43 @@ export interface Pad {
 const REST_HEIGHT = 0.15;
 const BOB_DURATION_SECONDS = 0.6;
 const BOB_PEAK_SCALE = 1.35;
+
+// A removed pad tumbles off along the direction it was already heading
+// (pad.angle) rather than just fading out, so a drag-off or Delete reads as
+// something falling off the edge of the pond rather than vanishing.
+const FALL_DURATION_SECONDS = 0.6;
+const FALL_OUTWARD_DISTANCE = 1.5;
+const FALL_SINK_DEPTH = 1.8;
+const FALL_SPIN_RANGE_RAD_PER_SECOND = 5;
+
+// Click a pad to cycle through these — the same multiplier drives both the
+// model's visible scale and its note's peak gain, so "bigger" and "louder"
+// are one dial, not two separate settings to learn. Index 2 (1x) is the
+// default so an untouched pad looks/sounds exactly as it always has.
+const SIZE_MULTIPLIERS = [0.65, 0.85, 1, 1.25, 1.55];
+const DEFAULT_SIZE_LEVEL = 2;
+
+function padBaseScale(pad: Pad): number {
+  return PAD_MODEL_SCALE * SIZE_MULTIPLIERS[pad.sizeLevel];
+}
+
+// Same multiplier padBaseScale uses, exposed so main.ts can scale a note's
+// gain by the same "bigger" dial that drives the visible model size.
+export function sizeMultiplierFor(pad: Pad): number {
+  return SIZE_MULTIPLIERS[pad.sizeLevel];
+}
+
+// Advances a pad through its size levels, wrapping back to the smallest
+// after the largest — click again cycles through, rather than clamping at
+// the top. Applies the new scale immediately for instant visual feedback
+// rather than waiting for the next bob/fall to pick it up.
+export function cyclePadSize(pad: Pad): void {
+  pad.sizeLevel = (pad.sizeLevel + 1) % SIZE_MULTIPLIERS.length;
+  if (pad.bobStartTime === null && pad.fallStartTime === null) {
+    pad.object3D.scale.setScalar(padBaseScale(pad));
+  }
+  applyPadState(pad);
+}
 
 // Spawn angles for newly-added pads, cycled through so repeated adds fan out
 // around the rim instead of stacking on top of each other.
@@ -74,7 +115,7 @@ async function instantiatePad(
   }
 
   const object3D = await pondScene.loadModel(modelUrl);
-  object3D.scale.setScalar(PAD_MODEL_SCALE);
+  object3D.scale.setScalar(PAD_MODEL_SCALE * SIZE_MULTIPLIERS[DEFAULT_SIZE_LEVEL]);
   pondScene.scene.add(object3D);
 
   const instrument = INSTRUMENT_FOR_MODEL[modelKey] ?? "pad";
@@ -87,6 +128,10 @@ async function instantiatePad(
     nextTriggerTime: null,
     triggered: false,
     bobStartTime: null,
+    fallStartTime: null,
+    fallOrigin: { x: 0, z: 0 },
+    fallSpin: { x: 0, z: 0 },
+    sizeLevel: DEFAULT_SIZE_LEVEL,
   };
 
   attachPolarPointerHandlers(
@@ -102,6 +147,7 @@ async function instantiatePad(
       onRelease: (_state, wasOverflowing) => {
         if (wasOverflowing) onRemove(pad);
       },
+      onClick: () => cyclePadSize(pad),
     },
   );
   attachPolarKeyboardHandlers(el, pad, () => applyPadState(pad));
@@ -146,16 +192,50 @@ export async function addPad(
   return instantiatePad(el, ctx, pondScene, onRemove);
 }
 
-// Tears a pad down: removes its hit-target button from the DOM, its 3D model
-// from the scene, and disconnects its persistent audio nodes so nothing keeps
-// the Web Audio graph alive. Models are clone()d from a shared cache in
-// scene.ts, so clones share geometry/material — only this pad's own Object3D
-// node needs removing, never disposed.
-export function removePad(pad: Pad, pondScene: PondScene): void {
+// Detaches a pad's controls immediately (hit-target button, audio chain) but
+// leaves its 3D model in the scene so it can play out beginPadFall's tumble
+// animation. Call removePad once updateFallAnimation reports finished.
+export function beginPadFall(pad: Pad, currentTime: number): void {
   pad.el.remove();
-  pondScene.scene.remove(pad.object3D);
   pad.audioChain.filter.disconnect();
   pad.audioChain.panner.disconnect();
+  pad.fallOrigin = { x: pad.object3D.position.x, z: pad.object3D.position.z };
+  pad.fallSpin = {
+    x: (Math.random() * 2 - 1) * FALL_SPIN_RANGE_RAD_PER_SECOND,
+    z: (Math.random() * 2 - 1) * FALL_SPIN_RANGE_RAD_PER_SECOND,
+  };
+  pad.fallStartTime = currentTime;
+}
+
+// Eases the pad outward along the angle it was already heading, sinking and
+// spinning it as it shrinks away — a "fallen off the edge" tumble rather than
+// an instant disappear. t*t (not the bob's sine ease) reads as acceleration,
+// like gravity taking over once it's left the pond. Returns true once the
+// animation has finished, at which point the caller should call removePad.
+export function updateFallAnimation(pad: Pad, currentTime: number): boolean {
+  if (pad.fallStartTime === null) return true;
+  const elapsed = currentTime - pad.fallStartTime;
+  if (elapsed >= FALL_DURATION_SECONDS) return true;
+
+  const t = elapsed / FALL_DURATION_SECONDS;
+  const eased = t * t;
+  pad.object3D.position.set(
+    pad.fallOrigin.x + Math.cos(pad.angle) * FALL_OUTWARD_DISTANCE * eased,
+    REST_HEIGHT - FALL_SINK_DEPTH * eased,
+    pad.fallOrigin.z + Math.sin(pad.angle) * FALL_OUTWARD_DISTANCE * eased,
+  );
+  pad.object3D.rotation.x = pad.fallSpin.x * elapsed;
+  pad.object3D.rotation.z = pad.fallSpin.z * elapsed;
+  pad.object3D.scale.setScalar(padBaseScale(pad) * (1 - eased));
+  return false;
+}
+
+// Final teardown once a fall animation (or an instant removal) has finished:
+// drops the 3D model from the scene. Models are clone()d from a shared cache
+// in scene.ts, so clones share geometry/material — only this pad's own
+// Object3D node needs removing, never disposed.
+export function removePad(pad: Pad, pondScene: PondScene): void {
+  pondScene.scene.remove(pad.object3D);
 }
 
 // Updates everything derived from distance/angle: the 3D model's world
@@ -174,13 +254,16 @@ export function applyPadState(pad: Pad): void {
   const pan = panForAngle(pad.angle);
   updatePadParams(pad.audioChain, cutoff, pan);
 
-  const valueNow = Math.round((1 - clamped) * 100);
+  // Pitch is read off angle (see scale.ts's frequencyForAngle) — valueNow
+  // mirrors that same 0=highest..100=lowest mapping so the announced number
+  // and the audible pitch move together.
+  const valueNow = Math.round((1 - normalizedAngle(pad.angle)) * 100);
   const panLabel =
     pan < -0.15 ? "panned left" : pan > 0.15 ? "panned right" : "panned centre";
   pad.el.setAttribute("aria-valuenow", String(valueNow));
   pad.el.setAttribute(
     "aria-valuetext",
-    `pitch ${valueNow} of 100, ${panLabel}`,
+    `pitch ${valueNow} of 100, ${panLabel}, size ${pad.sizeLevel + 1} of ${SIZE_MULTIPLIERS.length}`,
   );
 }
 
@@ -205,11 +288,11 @@ export function updateBobAnimation(pad: Pad, currentTime: number): void {
   if (pad.bobStartTime === null) return;
   const elapsed = currentTime - pad.bobStartTime;
   if (elapsed >= BOB_DURATION_SECONDS) {
-    pad.object3D.scale.setScalar(PAD_MODEL_SCALE);
+    pad.object3D.scale.setScalar(padBaseScale(pad));
     pad.bobStartTime = null;
     return;
   }
   const t = elapsed / BOB_DURATION_SECONDS;
   const bump = Math.sin(t * Math.PI); // 0 -> 1 -> 0
-  pad.object3D.scale.setScalar(PAD_MODEL_SCALE * (1 + bump * (BOB_PEAK_SCALE - 1)));
+  pad.object3D.scale.setScalar(padBaseScale(pad) * (1 + bump * (BOB_PEAK_SCALE - 1)));
 }

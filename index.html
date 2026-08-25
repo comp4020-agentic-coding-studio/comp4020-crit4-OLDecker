@@ -31,6 +31,7 @@
         aria-label="A pond instrument. Drag a lily pad, or focus one and use the arrow keys, to change its pitch, timing and stereo position. Drag a pad past the edge, or focus it and press Delete, to remove it."
       >
         <div class="ripple" aria-hidden="true"></div>
+        <p id="pond-status" class="visually-hidden" aria-live="polite"></p>
         <button
           type="button"
           class="lily-pad"
@@ -126,7 +127,7 @@
           type="button"
           class="wind-control"
           role="slider"
-          aria-label="Windmill — move it to change wind speed, which sets the melody's tempo"
+          aria-label="Windmill — move it to change wind speed, which sets the melody's tempo. Click it to pause or resume the melody."
           aria-valuemin="0"
           aria-valuemax="100"
           aria-valuenow="50"
@@ -153,7 +154,8 @@
       <p class="pond-hint">
         Drag a pad past the pond's edge, or focus it and press Delete, to
         remove it. Drag a palette icon onto the pond to place a new one
-        exactly where you drop it.
+        exactly where you drop it. Click the windmill to pause or resume the
+        melody.
       </p>
     </main>
     <footer>

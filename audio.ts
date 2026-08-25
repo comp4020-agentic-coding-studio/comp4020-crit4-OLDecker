@@ -17,10 +17,15 @@ export function getAudioContext(): AudioContext {
 }
 
 // The context starts suspended per the browser's autoplay policy; this must
-// be called synchronously inside a real user-gesture handler.
+// be called synchronously inside a real user-gesture handler. Checking for
+// anything other than "running" (rather than specifically "suspended")
+// matters on iOS Safari, which also has its own non-standard "interrupted"
+// state after the tab is backgrounded or the browser is closed and reopened
+// — ctx.currentTime freezes in that state too, which stalls the whole tick
+// loop (ripple, windmill spin, bobbing), not just sound.
 export function resumeAudio(): Promise<void> {
   const ctx = getAudioContext();
-  if (ctx.state === "suspended") {
+  if (ctx.state !== "running") {
     return ctx.resume();
   }
   return Promise.resolve();
@@ -176,32 +181,33 @@ export function triggerPadNote(
   chain: PadAudioChain,
   frequency: number,
   time: number,
+  gainMultiplier = 1,
 ): void {
   const dest = chain.filter;
   switch (chain.instrument) {
     case "pad":
-      playTone(ctx, dest, "sine", frequency, time, 0.02, 0.6, PEAK_GAIN);
+      playTone(ctx, dest, "sine", frequency, time, 0.02, 0.6, PEAK_GAIN * gainMultiplier);
       break;
     case "pluck":
-      playTone(ctx, dest, "triangle", frequency, time, 0.005, 0.25, 0.4);
+      playTone(ctx, dest, "triangle", frequency, time, 0.005, 0.25, 0.4 * gainMultiplier);
       break;
     case "guitar":
       // Two detuned layers, one an octave down, read as a plucked string
       // rather than a pure tone.
-      playTone(ctx, dest, "triangle", frequency, time, 0.004, 0.4, 0.3, -6);
-      playTone(ctx, dest, "sawtooth", frequency / 2, time, 0.004, 0.4, 0.18, 6);
+      playTone(ctx, dest, "triangle", frequency, time, 0.004, 0.4, 0.3 * gainMultiplier, -6);
+      playTone(ctx, dest, "sawtooth", frequency / 2, time, 0.004, 0.4, 0.18 * gainMultiplier, 6);
       break;
     case "snare":
-      playNoiseBurst(ctx, dest, frequency, time, 0.15, 0.5);
+      playNoiseBurst(ctx, dest, frequency, time, 0.15, 0.5 * gainMultiplier);
       break;
     case "kick":
-      playThump(ctx, dest, frequency * 0.6, time, 0.2, 0.55);
+      playThump(ctx, dest, frequency * 0.6, time, 0.2, 0.55 * gainMultiplier);
       break;
     case "woodblock":
-      playTone(ctx, dest, "square", frequency * 1.5, time, 0.002, 0.08, 0.25);
+      playTone(ctx, dest, "square", frequency * 1.5, time, 0.002, 0.08, 0.25 * gainMultiplier);
       break;
     case "tom":
-      playThump(ctx, dest, frequency * 0.4, time, 0.45, 0.5);
+      playThump(ctx, dest, frequency * 0.4, time, 0.45, 0.5 * gainMultiplier);
       break;
   }
 }

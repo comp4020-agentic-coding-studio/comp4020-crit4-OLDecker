@@ -32,6 +32,7 @@ export function getWindSpeedMultiplier(distance: number): number {
 export async function createWindmill(
   pond: HTMLElement,
   pondScene: PondScene,
+  onClick?: () => void,
 ): Promise<Windmill> {
   const el = pond.querySelector<HTMLButtonElement>(".wind-control");
   if (!el) {
@@ -47,7 +48,9 @@ export async function createWindmill(
 
   const windmill: Windmill = { distance, angle, el, object3D, rotor };
 
-  attachPolarPointerHandlers(el, pondScene, windmill, () => applyWindmillState(windmill));
+  attachPolarPointerHandlers(el, pondScene, windmill, () => applyWindmillState(windmill), {
+    onClick,
+  });
   attachPolarKeyboardHandlers(el, windmill, () => applyWindmillState(windmill));
   applyWindmillState(windmill);
   syncWindmillScreenPosition(windmill, pondScene);

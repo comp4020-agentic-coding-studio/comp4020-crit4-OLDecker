@@ -13,6 +13,10 @@ export interface PolarState {
   angle: number;
 }
 
+// A pointer session that never travels farther than this from its
+// pointerdown position counts as a tap/click rather than a drag.
+const CLICK_MOVEMENT_THRESHOLD_PX = 6;
+
 export interface PolarPointerOptions {
   // When set, distance is only floor-clamped during drag (still MIN_DISTANCE),
   // not ceiling-clamped, so the element can visibly follow the pointer out
@@ -21,6 +25,10 @@ export interface PolarPointerOptions {
   // Fires on pointerup when allowOverflow is set, reporting whether the last
   // position was past REMOVE_DISTANCE_THRESHOLD.
   onRelease?: (state: PolarState, wasOverflowing: boolean) => void;
+  // Fires on pointerup when the pointer never moved past
+  // CLICK_MOVEMENT_THRESHOLD_PX — i.e. a tap/click, not a drag. Lets a click
+  // trigger something distance/angle dragging shouldn't (pause, resize).
+  onClick?: () => void;
 }
 
 // Shared drag/keyboard interaction for anything positioned in the pond's
@@ -37,13 +45,26 @@ export function attachPolarPointerHandlers(
   options: PolarPointerOptions = {},
 ): void {
   let wasOverflowing = false;
+  let downX = 0;
+  let downY = 0;
+  let movedPastClickThreshold = false;
 
   el.addEventListener("pointerdown", (event) => {
     el.setPointerCapture(event.pointerId);
+    downX = event.clientX;
+    downY = event.clientY;
+    movedPastClickThreshold = false;
   });
 
   el.addEventListener("pointermove", (event) => {
     if (!el.hasPointerCapture(event.pointerId)) return;
+
+    if (
+      !movedPastClickThreshold &&
+      Math.hypot(event.clientX - downX, event.clientY - downY) > CLICK_MOVEMENT_THRESHOLD_PX
+    ) {
+      movedPastClickThreshold = true;
+    }
 
     const world = pondScene.screenToWorld(event.clientX, event.clientY);
     if (!world) return;
@@ -69,6 +90,7 @@ export function attachPolarPointerHandlers(
       }
       wasOverflowing = false;
     }
+    if (!movedPastClickThreshold) options.onClick?.();
   });
 }
 

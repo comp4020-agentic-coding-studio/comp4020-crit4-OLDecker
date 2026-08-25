@@ -26,6 +26,22 @@ export function frequencyForDistance(distance: number): number {
   return SCALE_FREQUENCIES[index];
 }
 
+// 0 at angle 0, sweeping up through 1 all the way round to (just short of)
+// angle 2π again.
+export function normalizedAngle(angleRadians: number): number {
+  const twoPi = Math.PI * 2;
+  return (((angleRadians % twoPi) + twoPi) % twoPi) / twoPi;
+}
+
+// Pitch comes from where a pad sits around the ring, not how far out it is —
+// same quantization/order as frequencyForDistance (0 -> highest, 1 -> lowest)
+// so going around the pond still sweeps through the scale the same way
+// moving out from the centre used to.
+export function frequencyForAngle(angleRadians: number): number {
+  const index = Math.round((1 - normalizedAngle(angleRadians)) * (SCALE_FREQUENCIES.length - 1));
+  return SCALE_FREQUENCIES[index];
+}
+
 // The ripple takes longer to reach a pad that's farther from the centre.
 // Returned as a fraction of the current pulse interval (not absolute
 // seconds) so ripple timing scales automatically as wind speed changes the
