@@ -164,3 +164,28 @@ here and wire it into `check`. Growing this file is the work.
   renders correctly. Cost real time here chasing a "transparent" bug that was
   actually just a broken readback, before switching to inspecting real
   `page.screenshot()` PNG bytes (e.g. via Pillow), which is reliable.
+- **An author CSS rule with the same specificity as the browser's built-in
+  `[hidden] { display: none }` can silently cancel it.** A plain class
+  selector (`.foo { display: flex }`) has the same specificity as an
+  attribute selector, so if that class also matches an element that has the
+  `hidden` attribute, source order decides, and an author stylesheet always
+  loads after the UA stylesheet — so the element stays visible even with
+  `hidden` set, no error, nothing in the cascade looks wrong at a glance.
+  Caught this shipping a toggleable toast (`hidden` + a "show" JS call):
+  Playwright's `isVisible()` returned `true` on the branch that should have
+  stayed hidden, before any JS had run to un-hide it. Fix: add an explicit
+  `.foo[hidden] { display: none }` rule (or scope the `display` declaration
+  to `.foo:not([hidden])`) whenever a class sets `display` on an element
+  that can also carry `hidden`. Worth a real before/after visibility
+  assertion in a browser, not just a green build, whenever a `hidden`
+  attribute is toggled by script rather than left static in markup.
+- **There is no web API to read an iPhone's hardware silent/mute switch.**
+  iOS Safari (and every other iOS browser, since they all wrap WebKit)
+  mutes `AudioContext` output when the switch is on, but `ctx.state` still
+  reports `"running"` and every node still fires — nothing in the Web Audio
+  API reflects the actual silence. The only honest approach is inferring
+  the *platform* (iOS is the only place this failure mode exists) via
+  `navigator.userAgent` / `maxTouchPoints` (iPadOS 13+ reports as a plain
+  Mac in the UA, but exposes multiple touch points unlike a real Mac) and
+  showing a one-time hint after playback starts — not pretending to detect
+  the switch itself. See `isIOS()` in `main.ts`.

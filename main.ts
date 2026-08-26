@@ -28,11 +28,34 @@ import {
 const BASE_PULSE_INTERVAL_SECONDS = 1.8;
 const RIPPLE_LOOKAHEAD_SECONDS = 0.1;
 
+// iOS Safari (and any browser shell on iOS, since they all wrap WebKit)
+// silently mutes WebAudio output when the phone's hardware silent switch is
+// on — the AudioContext still reports "running" and every node still fires,
+// there's just no sound. There is no web API that exposes the switch's
+// state, so this can't be detected directly; it's inferred from the
+// platform, since iOS is the only place this failure mode exists at all.
+// iPadOS 13+ reports its userAgent as a plain Mac, unlike a real Mac it
+// exposes multiple touch points, which is the standard way to tell them
+// apart.
+function isIOS(): boolean {
+  return (
+    /iPhone|iPad|iPod/.test(navigator.userAgent) ||
+    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1)
+  );
+}
+
+const SILENT_MODE_NOTICE_DELAY_MS = 1500;
+
 const pond = document.querySelector<HTMLElement>("#pond");
 const ripple = document.querySelector<HTMLElement>(".ripple");
 const zoomInButton = document.querySelector<HTMLButtonElement>("#zoom-in");
 const zoomOutButton = document.querySelector<HTMLButtonElement>("#zoom-out");
 const paletteButtons = document.querySelectorAll<HTMLButtonElement>(".palette-button");
+const silentModeNotice = document.querySelector<HTMLElement>("#silent-mode-notice");
+const silentModeDismiss = document.querySelector<HTMLButtonElement>(".silent-mode-dismiss");
+silentModeDismiss?.addEventListener("click", () => {
+  if (silentModeNotice) silentModeNotice.hidden = true;
+});
 
 if (pond) {
   // A separate non-null binding: TS doesn't retain the `if (pond)` narrowing
@@ -70,6 +93,14 @@ if (pond) {
     resumeAudio().catch(() => {});
     if (started) return;
     started = true;
+    // Delayed rather than immediate so it reads as "you should have heard
+    // something by now" instead of appearing before the first pulse has
+    // even had a chance to play.
+    if (isIOS() && silentModeNotice) {
+      window.setTimeout(() => {
+        silentModeNotice.hidden = false;
+      }, SILENT_MODE_NOTICE_DELAY_MS);
+    }
     nextPulseTime = ctx.currentTime + 0.2;
     requestAnimationFrame(tick);
   };
