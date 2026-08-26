@@ -45,6 +45,10 @@ function isIOS(): boolean {
 }
 
 const SILENT_MODE_NOTICE_DELAY_MS = 1500;
+const SILENT_MODE_NOTICE_VISIBLE_MS = 4500;
+// Matches the CSS transition duration on .silent-mode-notice, so `hidden`
+// isn't set until the fade-out has actually finished playing.
+const SILENT_MODE_NOTICE_FADE_MS = 400;
 
 const pond = document.querySelector<HTMLElement>("#pond");
 const ripple = document.querySelector<HTMLElement>(".ripple");
@@ -53,9 +57,17 @@ const zoomOutButton = document.querySelector<HTMLButtonElement>("#zoom-out");
 const paletteButtons = document.querySelectorAll<HTMLButtonElement>(".palette-button");
 const silentModeNotice = document.querySelector<HTMLElement>("#silent-mode-notice");
 const silentModeDismiss = document.querySelector<HTMLButtonElement>(".silent-mode-dismiss");
-silentModeDismiss?.addEventListener("click", () => {
-  if (silentModeNotice) silentModeNotice.hidden = true;
-});
+
+function dismissSilentModeNotice(): void {
+  if (!silentModeNotice || silentModeNotice.hidden) return;
+  silentModeNotice.classList.add("silent-mode-notice-fade");
+  window.setTimeout(() => {
+    silentModeNotice.hidden = true;
+    silentModeNotice.classList.remove("silent-mode-notice-fade");
+  }, SILENT_MODE_NOTICE_FADE_MS);
+}
+
+silentModeDismiss?.addEventListener("click", dismissSilentModeNotice);
 
 if (pond) {
   // A separate non-null binding: TS doesn't retain the `if (pond)` narrowing
@@ -95,10 +107,12 @@ if (pond) {
     started = true;
     // Delayed rather than immediate so it reads as "you should have heard
     // something by now" instead of appearing before the first pulse has
-    // even had a chance to play.
+    // even had a chance to play. Fades itself out shortly after — a cute,
+    // easy-to-miss hint rather than a banner demanding to be dismissed.
     if (isIOS() && silentModeNotice) {
       window.setTimeout(() => {
         silentModeNotice.hidden = false;
+        window.setTimeout(dismissSilentModeNotice, SILENT_MODE_NOTICE_VISIBLE_MS);
       }, SILENT_MODE_NOTICE_DELAY_MS);
     }
     nextPulseTime = ctx.currentTime + 0.2;
